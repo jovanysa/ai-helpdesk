@@ -74,12 +74,16 @@ export async function startChatStream(
   signal: AbortSignal,
 ): Promise<ChatStreamStart> {
   const query = buildSearchQuery(turns);
-  const language = detectLanguage(turns.at(-1)?.content ?? '');
+  const [current = '', previous] = turns
+    .filter((turn) => turn.role === 'user')
+    .map((turn) => turn.content)
+    .reverse();
+  const language = detectLanguage(current);
 
   let onTopic: boolean;
   let sources: KnowledgeSource[];
   try {
-    [onTopic, sources] = await Promise.all([checkTopic(isAboutFoundation, query), knowledge.search(query)]);
+    [onTopic, sources] = await Promise.all([checkTopic(isAboutFoundation, current, previous), knowledge.search(query)]);
   } catch (error) {
     return { ok: false, error };
   }
@@ -101,9 +105,9 @@ export async function startChatStream(
 }
 
 /** If the check itself fails, answer anyway: the prompt's refusal rule is the fallback. */
-async function checkTopic(isAboutFoundation: TopicGate, query: string): Promise<boolean> {
+async function checkTopic(isAboutFoundation: TopicGate, current: string, previous?: string): Promise<boolean> {
   try {
-    return await isAboutFoundation(query);
+    return await isAboutFoundation(current, previous);
   } catch (error) {
     console.error('[chat] topic check failed:', error instanceof Error ? error.message : error);
     return true;

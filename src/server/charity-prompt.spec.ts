@@ -48,4 +48,12 @@ describe('buildSystemPrompt', () => {
       "I don't have that information. I can help with questions about Al-Khair Foundation, or call us on 0100 000 0000.",
     );
   });
+
+  it('lets the model answer greetings and thanks', () => {
+    expect(buildSystemPrompt([], 'ar')).toContain('If the message only greets or thanks you');
+  });
+
+  it('tells the model to explain how to get help when someone describes a need', () => {
+    expect(buildSystemPrompt([], 'en')).toContain('describes a need the foundation helps with');
+  });
 });

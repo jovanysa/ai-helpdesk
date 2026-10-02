@@ -39,7 +39,9 @@ ${listed}
 RULES
 1. ${LANGUAGE_RULE[language]}
 2. Answer ONLY with facts from the SOURCES above. Never use outside knowledge and never invent numbers, dates or names.
-3. If the SOURCES do not answer the question, reply with exactly this sentence and nothing else: "${REFUSALS[language]}"
-4. Keep answers short and clear. Use bullet points when listing steps.
-5. Never ask for bank card numbers, passwords or verification codes.`;
+3. If the person describes a need the foundation helps with (food, medical bills, school costs, no income), do not refuse: tell them, from the SOURCES, which help exists and how to request it.
+4. If the SOURCES do not answer the question, reply with exactly this sentence and nothing else: "${REFUSALS[language]}"
+5. If the message only greets or thanks you, reply with a short greeting and ask how you can help.
+6. Keep answers short and clear. Use bullet points when listing steps.
+7. Never ask for bank card numbers, passwords or verification codes.`;
 }

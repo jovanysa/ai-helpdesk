@@ -183,7 +183,7 @@ describe('startChatStream', () => {
       toSse({ type: 'done' }),
     ]);
     expect(seen).toEqual([]);
-    expect(gate).toHaveBeenCalledWith(userTurn.content);
+    expect(gate).toHaveBeenCalledWith(userTurn.content, undefined);
   });
 
   it('refuses in English for an English question', async () => {
@@ -198,7 +198,7 @@ describe('startChatStream', () => {
     expect(await collect(start.events)).toContain(toSse({ type: 'token', text: REFUSAL_EN }));
   });
 
-  it('checks a short follow-up together with the previous question', async () => {
+  it('checks the current message, with the previous question as context', async () => {
     const gate = vi.fn(async () => true);
     await startChatStream(
       fakeProvider([]),
@@ -211,7 +211,7 @@ describe('startChatStream', () => {
       ],
       new AbortController().signal,
     );
-    expect(gate).toHaveBeenCalledWith('ازاي اتبرع؟\nوبالفيزا؟');
+    expect(gate).toHaveBeenCalledWith('وبالفيزا؟', 'ازاي اتبرع؟');
   });
 
   it('still answers when the topic check itself fails', async () => {
