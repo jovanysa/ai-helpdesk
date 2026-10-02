@@ -10,6 +10,9 @@ import { DEFAULT_OLLAMA_MODEL, DEFAULT_OLLAMA_URL, OllamaProvider } from './serv
 import { createChatRouter } from './server/chat-route';
 import { apiErrorHandler, createApiRouter } from './server/api-router';
 import { openDatabase } from './server/db';
+import { DEFAULT_EMBED_MODEL, createOllamaEmbedder } from './server/embedder';
+import { KnowledgeBase } from './server/knowledge-base';
+import { loadKnowledgeDir } from './server/knowledge-chunks';
 import { SessionStore } from './server/sessions';
 import { StaffRepository } from './server/staff-repository';
 import { TicketClassifier, createOllamaClassifier } from './server/ticket-classifier';
@@ -31,6 +34,16 @@ const sessions = new SessionStore(db);
 const tickets = new TicketRepository(db);
 const classifier = new TicketClassifier(tickets, createOllamaClassifier(ollamaConfig));
 
+// RAG: the chat answers from the markdown files in knowledge/, searched by meaning.
+const embedModel = process.env['OLLAMA_EMBED_MODEL'] ?? DEFAULT_EMBED_MODEL;
+const knowledgeDir = process.env['KNOWLEDGE_DIR'] ?? join(process.cwd(), 'knowledge');
+const knowledge = new KnowledgeBase(
+  db,
+  createOllamaEmbedder({ url: ollamaConfig.url, model: embedModel }),
+  () => loadKnowledgeDir(knowledgeDir),
+  embedModel,
+);
+
 // The first staff account comes from the environment; an existing one is left unchanged.
 const staffEmail = process.env['STAFF_EMAIL'];
 const staffPassword = process.env['STAFF_PASSWORD'];
@@ -44,7 +57,7 @@ if (staffEmail && staffPassword) {
 app.use(
   '/api',
   express.json(),
-  createChatRouter(new OllamaProvider(ollamaConfig)),
+  createChatRouter(new OllamaProvider(ollamaConfig), knowledge),
   createApiRouter({ staff, sessions, tickets, classifier }),
   apiErrorHandler,
 );

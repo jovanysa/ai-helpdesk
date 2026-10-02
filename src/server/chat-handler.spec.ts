@@ -1,6 +1,7 @@
 import { AiMessage, AiProvider } from './ai-provider';
-import { CHARITY_SYSTEM_PROMPT } from './charity-prompt';
-import { ChatTurn, startChatStream, toSse, validateChatRequest } from './chat-handler';
+import { buildSystemPrompt } from './charity-prompt';
+import { ChatTurn, buildSearchQuery, startChatStream, toSse, validateChatRequest } from './chat-handler';
+import { KnowledgeSearch, KnowledgeSource } from './knowledge-base';
 
 async function collect<T>(iterable: AsyncIterable<T>): Promise<T[]> {
   const items: T[] = [];
@@ -59,31 +60,73 @@ describe('toSse', () => {
   });
 });
 
-describe('startChatStream', () => {
-  it('prepends the charity system prompt', async () => {
-    const seen: AiMessage[][] = [];
-    await startChatStream(fakeProvider([], seen), [userTurn], new AbortController().signal);
-    expect(seen[0]).toEqual([{ role: 'system', content: CHARITY_SYSTEM_PROMPT }, userTurn]);
+const hoursSource: KnowledgeSource = { file: 'about.md', title: 'المواعيد', content: 'الجمعة: مقفول.', score: 0.9 };
+
+function fakeKnowledge(sources: KnowledgeSource[] = [hoursSource]): KnowledgeSearch & { search: ReturnType<typeof vi.fn> } {
+  return { search: vi.fn(async () => sources) };
+}
+
+describe('buildSearchQuery', () => {
+  it('adds the previous question to a short follow-up', () => {
+    expect(
+      buildSearchQuery([
+        { role: 'user', content: 'ازاي اتبرع؟' },
+        { role: 'assistant', content: 'بفودافون كاش' },
+        { role: 'user', content: 'وبالفيزا؟' },
+      ]),
+    ).toBe('ازاي اتبرع؟\nوبالفيزا؟');
   });
 
-  it('emits a token event per piece followed by done', async () => {
+  it('uses a long enough question on its own', () => {
+    expect(
+      buildSearchQuery([
+        { role: 'user', content: 'ازاي اتبرع؟' },
+        { role: 'user', content: 'عايز أعرف مواعيد المقر يوم السبت' },
+      ]),
+    ).toBe('عايز أعرف مواعيد المقر يوم السبت');
+    expect(buildSearchQuery([{ role: 'user', content: 'hi' }])).toBe('hi');
+  });
+});
+
+describe('startChatStream', () => {
+  it('searches the knowledge and puts the results into the system prompt', async () => {
+    const seen: AiMessage[][] = [];
+    const knowledge = fakeKnowledge();
+    await startChatStream(fakeProvider([], seen), knowledge, [userTurn], new AbortController().signal);
+    expect(knowledge.search).toHaveBeenCalledWith(userTurn.content);
+    expect(seen[0]).toEqual([{ role: 'system', content: buildSystemPrompt([hoursSource]) }, userTurn]);
+  });
+
+  it('emits the sources first, then a token event per piece and done', async () => {
     const start = await startChatStream(
       fakeProvider(['أهلًا', ' بيك']),
+      fakeKnowledge(),
       [userTurn],
       new AbortController().signal,
     );
     if (!start.ok) throw new Error('expected ok');
 
     expect(await collect(start.events)).toEqual([
+      toSse({ type: 'sources', sources: [{ title: 'المواعيد', file: 'about.md' }] }),
       toSse({ type: 'token', text: 'أهلًا' }),
       toSse({ type: 'token', text: ' بيك' }),
       toSse({ type: 'done' }),
     ]);
   });
 
+  it('fails before streaming when the knowledge search fails', async () => {
+    const seen: AiMessage[][] = [];
+    const knowledge = fakeKnowledge();
+    knowledge.search.mockRejectedValueOnce(new Error('Embedding model "m" is not downloaded.'));
+    const start = await startChatStream(fakeProvider(['x'], seen), knowledge, [userTurn], new AbortController().signal);
+    expect(start.ok).toBe(false);
+    expect(seen).toEqual([]);
+  });
+
   it('reports failure before streaming when the provider fails immediately', async () => {
     const start = await startChatStream(
       fakeProvider([new Error('Ollama is not reachable')]),
+      fakeKnowledge(),
       [userTurn],
       new AbortController().signal,
     );
@@ -93,14 +136,16 @@ describe('startChatStream', () => {
   it('emits an error event when the provider fails mid-stream', async () => {
     const start = await startChatStream(
       fakeProvider(['part', new Error('boom')]),
+      fakeKnowledge([]),
       [userTurn],
       new AbortController().signal,
     );
     if (!start.ok) throw new Error('expected ok');
 
     const events = await collect(start.events);
-    expect(events[0]).toBe(toSse({ type: 'token', text: 'part' }));
-    expect(events[1]).toContain('"type":"error"');
+    expect(events[0]).toBe(toSse({ type: 'sources', sources: [] }));
+    expect(events[1]).toBe(toSse({ type: 'token', text: 'part' }));
+    expect(events[2]).toContain('"type":"error"');
   });
 
   it('ends quietly without an error event when the client disconnected', async () => {
@@ -112,9 +157,12 @@ describe('startChatStream', () => {
         throw new Error('aborted');
       },
     };
-    const start = await startChatStream(provider, [userTurn], controller.signal);
+    const start = await startChatStream(provider, fakeKnowledge([]), [userTurn], controller.signal);
     if (!start.ok) throw new Error('expected ok');
 
-    expect(await collect(start.events)).toEqual([toSse({ type: 'token', text: 'part' })]);
+    expect(await collect(start.events)).toEqual([
+      toSse({ type: 'sources', sources: [] }),
+      toSse({ type: 'token', text: 'part' }),
+    ]);
   });
 });

@@ -1,5 +1,6 @@
 import { AiMessage, AiProvider } from './ai-provider';
-import { CHARITY_SYSTEM_PROMPT } from './charity-prompt';
+import { buildSystemPrompt } from './charity-prompt';
+import { KnowledgeSearch } from './knowledge-base';
 
 export const MAX_MESSAGES = 10;
 export const MAX_USER_MESSAGE_LENGTH = 2000;
@@ -9,6 +10,7 @@ export const MAX_ASSISTANT_MESSAGE_LENGTH = 8000;
 export type ChatTurn = { role: 'user' | 'assistant'; content: string };
 
 export type ChatStreamEvent =
+  | { type: 'sources'; sources: { title: string; file: string }[] }
   | { type: 'token'; text: string }
   | { type: 'done' }
   | { type: 'error'; message: string };
@@ -47,16 +49,36 @@ export function toSse(event: ChatStreamEvent): string {
   return `data: ${JSON.stringify(event)}\n\n`;
 }
 
+// A follow-up like "وبالفيزا؟" means little on its own, so it is searched together with the question before it.
+const SHORT_QUESTION = 20;
+
+/** The text used to search the knowledge for the customer's latest question. */
+export function buildSearchQuery(turns: ChatTurn[]): string {
+  const questions = turns.filter((turn) => turn.role === 'user').map((turn) => turn.content);
+  const last = questions.at(-1) ?? '';
+  const previous = questions.at(-2);
+  return last.trim().length < SHORT_QUESTION && previous ? `${previous}\n${last}` : last;
+}
+
 /**
- * Starts the AI reply and waits for its first piece, so a dead provider can still
- * be reported with a normal HTTP status before any SSE bytes are sent.
+ * Finds the knowledge for the question, then starts the AI reply and waits for its
+ * first piece, so a failure can still be reported with a normal HTTP status
+ * before any SSE bytes are sent.
  */
 export async function startChatStream(
   provider: AiProvider,
+  knowledge: KnowledgeSearch,
   turns: ChatTurn[],
   signal: AbortSignal,
 ): Promise<ChatStreamStart> {
-  const messages: AiMessage[] = [{ role: 'system', content: CHARITY_SYSTEM_PROMPT }, ...turns];
+  let sources;
+  try {
+    sources = await knowledge.search(buildSearchQuery(turns));
+  } catch (error) {
+    return { ok: false, error };
+  }
+
+  const messages: AiMessage[] = [{ role: 'system', content: buildSystemPrompt(sources) }, ...turns];
   const iterator = provider.streamChat(messages, signal)[Symbol.asyncIterator]();
 
   let first: IteratorResult<string>;
@@ -65,14 +87,17 @@ export async function startChatStream(
   } catch (error) {
     return { ok: false, error };
   }
-  return { ok: true, events: sseEvents(first, iterator, signal) };
+  const sourcesEvent = toSse({ type: 'sources', sources: sources.map(({ title, file }) => ({ title, file })) });
+  return { ok: true, events: sseEvents(sourcesEvent, first, iterator, signal) };
 }
 
 async function* sseEvents(
+  sourcesEvent: string,
   first: IteratorResult<string>,
   iterator: AsyncIterator<string>,
   signal: AbortSignal,
 ): AsyncGenerator<string> {
+  yield sourcesEvent;
   try {
     for (let result = first; !result.done; result = await iterator.next()) {
       yield toSse({ type: 'token', text: result.value });
