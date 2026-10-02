@@ -1,4 +1,4 @@
-import { DatabaseSync } from 'node:sqlite';
+import type { DatabaseSync } from 'node:sqlite';
 import { openDatabase } from './db';
 import { SESSION_TTL_MS, SessionStore } from './sessions';
 import { StaffRepository, StaffUser } from './staff-repository';

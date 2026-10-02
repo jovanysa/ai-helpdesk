@@ -8,20 +8,46 @@ import express from 'express';
 import { join } from 'node:path';
 import { DEFAULT_OLLAMA_MODEL, DEFAULT_OLLAMA_URL, OllamaProvider } from './server/ai-provider';
 import { createChatRouter } from './server/chat-route';
+import { apiErrorHandler, createApiRouter } from './server/api-router';
+import { openDatabase } from './server/db';
+import { SessionStore } from './server/sessions';
+import { StaffRepository } from './server/staff-repository';
+import { TicketClassifier, createOllamaClassifier } from './server/ticket-classifier';
+import { TicketRepository } from './server/ticket-repository';
 
 const browserDistFolder = join(import.meta.dirname, '../browser');
 
 const app = express();
 const angularApp = new AngularNodeAppEngine();
 
-/**
- * Chat API: streams AI replies as Server-Sent Events.
- */
-const aiProvider = new OllamaProvider({
+const ollamaConfig = {
   url: process.env['OLLAMA_URL'] ?? DEFAULT_OLLAMA_URL,
   model: process.env['OLLAMA_MODEL'] ?? DEFAULT_OLLAMA_MODEL,
-});
-app.use('/api', express.json(), createChatRouter(aiProvider));
+};
+
+const db = openDatabase(process.env['DB_PATH'] ?? join(process.cwd(), 'data', 'helpdesk.db'));
+const staff = new StaffRepository(db);
+const sessions = new SessionStore(db);
+const tickets = new TicketRepository(db);
+const classifier = new TicketClassifier(tickets, createOllamaClassifier(ollamaConfig));
+
+// The first staff account comes from the environment; an existing one is left unchanged.
+const staffEmail = process.env['STAFF_EMAIL'];
+const staffPassword = process.env['STAFF_PASSWORD'];
+if (staffEmail && staffPassword) {
+  staff.ensure(staffEmail, process.env['STAFF_NAME'] ?? 'Staff', staffPassword);
+}
+
+/**
+ * API: chat streaming (Server-Sent Events), tickets and staff login.
+ */
+app.use(
+  '/api',
+  express.json(),
+  createChatRouter(new OllamaProvider(ollamaConfig)),
+  createApiRouter({ staff, sessions, tickets, classifier }),
+  apiErrorHandler,
+);
 
 /**
  * Serve static files from /browser

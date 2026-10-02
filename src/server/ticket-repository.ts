@@ -1,4 +1,4 @@
-import { DatabaseSync } from 'node:sqlite';
+import type { DatabaseSync } from 'node:sqlite';
 import { Classification, NewTicket, Ticket, TicketFilters, TicketPatch, TicketSummary } from './ticket-types';
 
 interface TicketRow {

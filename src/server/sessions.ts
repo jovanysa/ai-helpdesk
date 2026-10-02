@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { DatabaseSync } from 'node:sqlite';
+import type { DatabaseSync } from 'node:sqlite';
 import { StaffUser } from './staff-repository';
 
 export const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;

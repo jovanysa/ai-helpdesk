@@ -1,6 +1,10 @@
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { DatabaseSync } from 'node:sqlite';
+import type { DatabaseSync } from 'node:sqlite';
+
+// Loaded at runtime: the Angular build's bundler rewrites a static `node:sqlite`
+// import to the npm package name `sqlite`, which does not exist.
+const { DatabaseSync: Database } = process.getBuiltinModule('node:sqlite') as typeof import('node:sqlite');
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS staff_users (
@@ -39,7 +43,7 @@ export function openDatabase(path: string): DatabaseSync {
   const inMemory = path === ':memory:';
   if (!inMemory) mkdirSync(dirname(path), { recursive: true });
 
-  const db = new DatabaseSync(path);
+  const db = new Database(path);
   db.exec('PRAGMA foreign_keys = ON;');
   // WAL lets reads continue while a write is in progress; it needs a real file.
   if (!inMemory) db.exec('PRAGMA journal_mode = WAL;');
