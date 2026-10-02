@@ -57,16 +57,20 @@ export class TicketDetail implements OnInit {
 
   /** Saves a select as soon as it changes. */
   protected update(field: keyof TicketPatch, event: Event): void {
-    const value = (event.target as HTMLSelectElement).value;
-    if (!value) return;
-    this.save(this.api.update(Number(this.id()), { [field]: value } as TicketPatch));
+    const select = event.target as HTMLSelectElement;
+    if (!select.value) return;
+    this.save(this.api.update(Number(this.id()), { [field]: select.value } as TicketPatch), () => {
+      // The ticket signal never changed, so Angular will not touch the DOM;
+      // put the select back to what is actually saved.
+      select.value = this.ticket()?.[field] ?? '';
+    });
   }
 
   protected reclassify(): void {
     this.save(this.api.reclassify(Number(this.id())));
   }
 
-  private save(request: ReturnType<TicketsApi['update']>): void {
+  private save(request: ReturnType<TicketsApi['update']>, onError?: () => void): void {
     this.saving.set(true);
     this.failed.set(false);
     request.subscribe({
@@ -75,6 +79,7 @@ export class TicketDetail implements OnInit {
         this.saving.set(false);
       },
       error: () => {
+        onError?.();
         this.failed.set(true);
         this.saving.set(false);
       },

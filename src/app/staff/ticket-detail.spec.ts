@@ -60,6 +60,18 @@ describe('TicketDetail', () => {
     expect(element.querySelector<HTMLSelectElement>('select[data-field=status]')!.value).toBe('resolved');
   });
 
+  it('puts the select back to the saved value when saving fails', async () => {
+    const { fixture, http, element } = await setup(ticket);
+    const select = element.querySelector<HTMLSelectElement>('select[data-field=status]')!;
+    select.value = 'resolved';
+    select.dispatchEvent(new Event('change'));
+    http.expectOne({ method: 'PATCH', url: '/api/tickets/7' }).flush({}, { status: 500, statusText: 'Server Error' });
+    await fixture.whenStable();
+
+    expect(element.querySelector<HTMLSelectElement>('select[data-field=status]')!.value).toBe('new');
+    expect(element.querySelector('[role=alert]')).not.toBeNull();
+  });
+
   it('offers reclassification only when it failed or is pending', async () => {
     const done = await setup(ticket);
     expect(done.element.textContent).not.toContain('إعادة التصنيف');
