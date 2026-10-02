@@ -53,7 +53,7 @@ export class KnowledgeBase {
 
   /** Embeds only new or changed chunks and deletes chunks that no longer exist in the files. */
   async reindex(): Promise<void> {
-    const chunks = this.loadChunks().map((chunk) => ({ ...chunk, hash: this.hash(chunk) }));
+    const chunks = this.uniqueChunks();
     const existing = new Set(
       this.db
         .prepare('SELECT content_hash FROM knowledge_chunks')
@@ -79,6 +79,22 @@ export class KnowledgeBase {
       throw error;
     }
     console.log(`[knowledge] indexed ${chunks.length} chunks (${fresh.length} new)`);
+  }
+
+  /** A section pasted twice would break the UNIQUE hash; keep the first one and warn. */
+  private uniqueChunks(): (KnowledgeChunk & { hash: string })[] {
+    const seen = new Set<string>();
+    const chunks: (KnowledgeChunk & { hash: string })[] = [];
+    for (const chunk of this.loadChunks()) {
+      const hash = this.hash(chunk);
+      if (seen.has(hash)) {
+        console.warn(`[knowledge] duplicate section "${chunk.title}" in ${chunk.file}; skipped`);
+        continue;
+      }
+      seen.add(hash);
+      chunks.push({ ...chunk, hash });
+    }
+    return chunks;
   }
 
   /** Indexes once; if that fails, the next search tries again (e.g. after `ollama pull`). */

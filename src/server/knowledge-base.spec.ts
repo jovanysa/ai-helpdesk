@@ -85,4 +85,15 @@ describe('KnowledgeBase', () => {
     const kb = new KnowledgeBase(db, fakeEmbed().embed, () => [], 'm');
     expect(await kb.search('x')).toEqual([]);
   });
+
+  it('keeps working when two sections are exactly the same', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const copy = { ...donate, file: 'copy.md' };
+    const { embed, calls } = fakeEmbed();
+    const kb = new KnowledgeBase(db, embed, () => [donate, copy, volunteer], 'm');
+    expect((await kb.search('تبرع', 1)).map((r) => r.title)).toEqual(['طرق التبرع']);
+    expect(calls[0]).toHaveLength(2);
+    expect(rows()).toHaveLength(2);
+    expect(console.warn).toHaveBeenCalledWith('[knowledge] duplicate section "طرق التبرع" in copy.md; skipped');
+  });
 });
