@@ -19,4 +19,11 @@ describe('SseParser', () => {
     const parser = new SseParser();
     expect(parser.push(': keep-alive\n\ndata: {"type":"done"}\n\n')).toEqual([{ type: 'done' }]);
   });
+
+  it('parses a sources event', () => {
+    const parser = new SseParser();
+    expect(parser.push('data: {"type":"sources","sources":[{"title":"المواعيد","file":"about.md"}]}\n\n')).toEqual([
+      { type: 'sources', sources: [{ title: 'المواعيد', file: 'about.md' }] },
+    ]);
+  });
 });

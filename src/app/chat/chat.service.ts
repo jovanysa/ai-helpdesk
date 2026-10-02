@@ -1,5 +1,5 @@
 import { Injectable, signal } from '@angular/core';
-import { ChatMessage } from './message.model';
+import { ChatMessage, KnowledgeRef } from './message.model';
 import { SseParser } from './sse-parser';
 
 export const MAX_MESSAGE_LENGTH = 2000;
@@ -30,7 +30,9 @@ export class ChatService {
     this.controller = controller;
 
     try {
-      await this.streamReply(history.slice(-MAX_HISTORY), controller.signal);
+      // The server only needs role and content; sources are for display.
+      const messages = history.slice(-MAX_HISTORY).map(({ role, content }) => ({ role, content }));
+      await this.streamReply(messages, controller.signal);
     } catch {
       // Pressing Stop also lands here; that is not an error for the user.
       if (!controller.signal.aborted) this._error.set(CHAT_ERROR_MESSAGE);
@@ -64,7 +66,8 @@ export class ChatService {
       if (done) break;
       // stream: true keeps a half-received Arabic character for the next chunk.
       for (const event of parser.push(decoder.decode(value, { stream: true }))) {
-        if (event.type === 'token') this.appendToReply(event.text);
+        if (event.type === 'sources') this.setReplySources(event.sources);
+        else if (event.type === 'token') this.appendToReply(event.text);
         else if (event.type === 'error') throw new Error(event.message);
         else return;
       }
@@ -76,6 +79,13 @@ export class ChatService {
     this._messages.update((messages) => {
       const reply = messages[messages.length - 1];
       return [...messages.slice(0, -1), { ...reply, content: reply.content + text }];
+    });
+  }
+
+  private setReplySources(sources: KnowledgeRef[]): void {
+    this._messages.update((messages) => {
+      const reply = messages[messages.length - 1];
+      return [...messages.slice(0, -1), { ...reply, sources }];
     });
   }
 

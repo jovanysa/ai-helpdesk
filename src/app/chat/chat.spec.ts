@@ -100,4 +100,23 @@ describe('Chat', () => {
     const { element } = await setup();
     expect(element.querySelector('a[href="/support/new"]')?.textContent).toContain('قدّم طلب');
   });
+
+  it('shows which knowledge was read under an assistant reply', async () => {
+    const { element } = await setup({
+      messages: [
+        { role: 'user', content: 'ازاي اتبرع؟' },
+        {
+          role: 'assistant',
+          content: 'بفودافون كاش',
+          sources: [
+            { title: 'طرق التبرع', file: 'donations.md' },
+            { title: 'إيصال التبرع', file: 'donations.md' },
+          ],
+        },
+      ],
+    });
+    const lines = element.querySelectorAll('.message__sources');
+    expect(lines).toHaveLength(1);
+    expect(lines[0].textContent?.trim()).toBe('اتقرا من: طرق التبرع، إيصال التبرع');
+  });
 });

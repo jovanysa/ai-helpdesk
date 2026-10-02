@@ -75,4 +75,14 @@ describe('EscalationForm', () => {
     element.querySelector<HTMLButtonElement>('.btn--secondary')!.click();
     expect(closed).toHaveBeenCalled();
   });
+
+  it('does not send sources in the transcript', async () => {
+    const { element, http } = await setup([
+      { role: 'user', content: 'عايزة أعرف مواعيد الكشف الطبي' },
+      { role: 'assistant', content: 'معنديش المعلومة دي', sources: [{ title: 'المواعيد', file: 'about.md' }] },
+    ]);
+    element.querySelector<HTMLButtonElement>('button[type=submit]')!.click();
+    const { transcript } = http.expectOne('/api/tickets').request.body;
+    for (const message of transcript) expect(Object.keys(message).sort()).toEqual(['content', 'role']);
+  });
 });

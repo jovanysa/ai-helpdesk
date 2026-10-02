@@ -36,7 +36,11 @@ export class EscalationForm {
     this.failed.set(false);
 
     const { name, phone, note } = this.form.getRawValue();
-    const transcript = this.chat.messages().filter((m) => m.content.trim()).slice(-MAX_TRANSCRIPT);
+    const transcript = this.chat
+      .messages()
+      .filter((m) => m.content.trim())
+      .slice(-MAX_TRANSCRIPT)
+      .map(({ role, content }) => ({ role, content }));
     this.api
       .create({ name: name.trim(), phone: phone.trim(), description: this.describe(note, transcript), transcript })
       .subscribe({

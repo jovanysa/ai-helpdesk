@@ -76,6 +76,14 @@
   }
 }
 
+.message__sources {
+  align-self: flex-end;
+  max-width: 85%;
+  margin: -6px 4px 0;
+  color: var(--c-muted);
+  font-size: 0.75rem;
+}
+
 .cursor {
   animation: blink 1s steps(1) infinite;
   color: var(--c-brand);

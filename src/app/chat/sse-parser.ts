@@ -1,4 +1,7 @@
+import { KnowledgeRef } from './message.model';
+
 export type ChatStreamEvent =
+  | { type: 'sources'; sources: KnowledgeRef[] }
   | { type: 'token'; text: string }
   | { type: 'done' }
   | { type: 'error'; message: string };

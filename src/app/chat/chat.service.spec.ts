@@ -155,4 +155,25 @@ describe('ChatService', () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
+
+  it('attaches the sources to the reply', async () => {
+    const sources = [{ title: 'طرق التبرع', file: 'donations.md' }];
+    fetchMock.mockResolvedValue(sseResponse([`data: ${JSON.stringify({ type: 'sources', sources })}\n\n`, token('أهلًا') + done]));
+
+    await service.send('ازاي اتبرع؟');
+
+    expect(service.messages()[1]).toEqual({ role: 'assistant', content: 'أهلًا', sources });
+  });
+
+  it('sends only role and content to the server', async () => {
+    const sources = [{ title: 'طرق التبرع', file: 'donations.md' }];
+    fetchMock.mockImplementation(async () =>
+      sseResponse([`data: ${JSON.stringify({ type: 'sources', sources })}\n\n`, token('ok') + done]),
+    );
+    await service.send('one');
+    await service.send('two');
+
+    const body = JSON.parse(fetchMock.mock.calls[1][1].body);
+    for (const message of body.messages) expect(Object.keys(message).sort()).toEqual(['content', 'role']);
+  });
 });

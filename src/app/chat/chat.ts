@@ -2,6 +2,7 @@ import { Component, ElementRef, afterRenderEffect, computed, inject, signal, vie
 import { RouterLink } from '@angular/router';
 import { ChatService, MAX_MESSAGE_LENGTH } from './chat.service';
 import { EscalationForm } from './escalation-form';
+import { ChatMessage } from './message.model';
 
 @Component({
   selector: 'app-chat',
@@ -31,7 +32,12 @@ export class Chat {
     });
   }
 
+  protected sourceTitles(message: ChatMessage): string {
+    return (message.sources ?? []).map((source) => source.title).join('، ');
+  }
+
   protected onInput(event: Event): void {
+
     this.draft.set((event.target as HTMLTextAreaElement).value);
   }
 

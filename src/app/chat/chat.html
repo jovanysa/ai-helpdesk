@@ -22,6 +22,9 @@
 
     @for (message of chat.messages(); track $index; let last = $last) {
       <div class="message" [class.message--user]="message.role === 'user'" dir="auto">{{ message.content }}@if (last && message.role === 'assistant' && chat.isStreaming()) {<span class="cursor">▌</span>}</div>
+      @if (message.role === 'assistant' && message.sources?.length) {
+        <p class="message__sources">اتقرا من: {{ sourceTitles(message) }}</p>
+      }
     }
   </section>
 
