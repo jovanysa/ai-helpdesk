@@ -40,7 +40,13 @@ export class OllamaProvider implements AiProvider {
       response = await fetchFn(`${url}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model, messages, stream: true, options: { num_predict: maxTokens } }),
+        body: JSON.stringify({
+          model,
+          messages,
+          stream: true,
+          // Low temperature: fewer surprises (switching language, inventing facts) from a small model.
+          options: { num_predict: maxTokens, temperature: 0.2 },
+        }),
         signal,
       });
     } catch (error) {

@@ -1,5 +1,5 @@
 import { AiMessage, AiProvider } from './ai-provider';
-import { buildSystemPrompt } from './charity-prompt';
+import { REFUSAL_AR, REFUSAL_EN, buildSystemPrompt } from './charity-prompt';
 import { ChatTurn, buildSearchQuery, startChatStream, toSse, validateChatRequest } from './chat-handler';
 import { KnowledgeSearch, KnowledgeSource } from './knowledge-base';
 
@@ -60,6 +60,8 @@ describe('toSse', () => {
   });
 });
 
+const allowAll = async () => true;
+
 const hoursSource: KnowledgeSource = { file: 'about.md', title: 'المواعيد', content: 'الجمعة: مقفول.', score: 0.9 };
 
 function fakeKnowledge(sources: KnowledgeSource[] = [hoursSource]): KnowledgeSearch & { search: ReturnType<typeof vi.fn> } {
@@ -92,15 +94,16 @@ describe('startChatStream', () => {
   it('searches the knowledge and puts the results into the system prompt', async () => {
     const seen: AiMessage[][] = [];
     const knowledge = fakeKnowledge();
-    await startChatStream(fakeProvider([], seen), knowledge, [userTurn], new AbortController().signal);
+    await startChatStream(fakeProvider([], seen), knowledge, allowAll, [userTurn], new AbortController().signal);
     expect(knowledge.search).toHaveBeenCalledWith(userTurn.content);
-    expect(seen[0]).toEqual([{ role: 'system', content: buildSystemPrompt([hoursSource]) }, userTurn]);
+    expect(seen[0]).toEqual([{ role: 'system', content: buildSystemPrompt([hoursSource], 'ar') }, userTurn]);
   });
 
   it('emits the sources first, then a token event per piece and done', async () => {
     const start = await startChatStream(
       fakeProvider(['أهلًا', ' بيك']),
       fakeKnowledge(),
+      allowAll,
       [userTurn],
       new AbortController().signal,
     );
@@ -118,7 +121,7 @@ describe('startChatStream', () => {
     const seen: AiMessage[][] = [];
     const knowledge = fakeKnowledge();
     knowledge.search.mockRejectedValueOnce(new Error('Embedding model "m" is not downloaded.'));
-    const start = await startChatStream(fakeProvider(['x'], seen), knowledge, [userTurn], new AbortController().signal);
+    const start = await startChatStream(fakeProvider(['x'], seen), knowledge, allowAll, [userTurn], new AbortController().signal);
     expect(start.ok).toBe(false);
     expect(seen).toEqual([]);
   });
@@ -127,6 +130,7 @@ describe('startChatStream', () => {
     const start = await startChatStream(
       fakeProvider([new Error('Ollama is not reachable')]),
       fakeKnowledge(),
+      allowAll,
       [userTurn],
       new AbortController().signal,
     );
@@ -137,6 +141,7 @@ describe('startChatStream', () => {
     const start = await startChatStream(
       fakeProvider(['part', new Error('boom')]),
       fakeKnowledge([]),
+      allowAll,
       [userTurn],
       new AbortController().signal,
     );
@@ -157,12 +162,71 @@ describe('startChatStream', () => {
         throw new Error('aborted');
       },
     };
-    const start = await startChatStream(provider, fakeKnowledge([]), [userTurn], controller.signal);
+    const start = await startChatStream(provider, fakeKnowledge([]), allowAll, [userTurn], controller.signal);
     if (!start.ok) throw new Error('expected ok');
 
     expect(await collect(start.events)).toEqual([
       toSse({ type: 'sources', sources: [] }),
       toSse({ type: 'token', text: 'part' }),
     ]);
+  });
+
+  it('answers off-topic questions with the refusal sentence without asking the model', async () => {
+    const seen: AiMessage[][] = [];
+    const gate = vi.fn(async () => false);
+    const start = await startChatStream(fakeProvider(['Paris'], seen), fakeKnowledge(), gate, [userTurn], new AbortController().signal);
+    if (!start.ok) throw new Error('expected ok');
+
+    expect(await collect(start.events)).toEqual([
+      toSse({ type: 'sources', sources: [] }),
+      toSse({ type: 'token', text: REFUSAL_AR }),
+      toSse({ type: 'done' }),
+    ]);
+    expect(seen).toEqual([]);
+    expect(gate).toHaveBeenCalledWith(userTurn.content);
+  });
+
+  it('refuses in English for an English question', async () => {
+    const start = await startChatStream(
+      fakeProvider([]),
+      fakeKnowledge(),
+      async () => false,
+      [{ role: 'user', content: 'What is the capital of France?' }],
+      new AbortController().signal,
+    );
+    if (!start.ok) throw new Error('expected ok');
+    expect(await collect(start.events)).toContain(toSse({ type: 'token', text: REFUSAL_EN }));
+  });
+
+  it('checks a short follow-up together with the previous question', async () => {
+    const gate = vi.fn(async () => true);
+    await startChatStream(
+      fakeProvider([]),
+      fakeKnowledge(),
+      gate,
+      [
+        { role: 'user', content: 'ازاي اتبرع؟' },
+        { role: 'assistant', content: 'بفودافون كاش' },
+        { role: 'user', content: 'وبالفيزا؟' },
+      ],
+      new AbortController().signal,
+    );
+    expect(gate).toHaveBeenCalledWith('ازاي اتبرع؟\nوبالفيزا؟');
+  });
+
+  it('still answers when the topic check itself fails', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const start = await startChatStream(
+      fakeProvider(['أهلًا']),
+      fakeKnowledge(),
+      async () => {
+        throw new Error('timeout');
+      },
+      [userTurn],
+      new AbortController().signal,
+    );
+    if (!start.ok) throw new Error('expected ok');
+    expect(await collect(start.events)).toContain(toSse({ type: 'token', text: 'أهلًا' }));
+    expect(console.error).toHaveBeenCalledWith('[chat] topic check failed:', 'timeout');
   });
 });

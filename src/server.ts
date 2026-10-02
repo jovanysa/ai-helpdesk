@@ -17,6 +17,7 @@ import { SessionStore } from './server/sessions';
 import { StaffRepository } from './server/staff-repository';
 import { TicketClassifier, createOllamaClassifier } from './server/ticket-classifier';
 import { TicketRepository } from './server/ticket-repository';
+import { createOllamaTopicGate } from './server/topic-gate';
 
 const browserDistFolder = join(import.meta.dirname, '../browser');
 
@@ -57,7 +58,7 @@ if (staffEmail && staffPassword) {
 app.use(
   '/api',
   express.json(),
-  createChatRouter(new OllamaProvider(ollamaConfig), knowledge),
+  createChatRouter(new OllamaProvider(ollamaConfig), knowledge, createOllamaTopicGate(ollamaConfig)),
   createApiRouter({ staff, sessions, tickets, classifier }),
   apiErrorHandler,
 );

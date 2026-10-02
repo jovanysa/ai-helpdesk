@@ -2,8 +2,9 @@ import { Router } from 'express';
 import { AiProvider } from './ai-provider';
 import { startChatStream, validateChatRequest } from './chat-handler';
 import { KnowledgeSearch } from './knowledge-base';
+import { TopicGate } from './topic-gate';
 
-export function createChatRouter(provider: AiProvider, knowledge: KnowledgeSearch): Router {
+export function createChatRouter(provider: AiProvider, knowledge: KnowledgeSearch, isAboutFoundation: TopicGate): Router {
   const router = Router();
 
   router.post('/chat', async (req, res) => {
@@ -17,7 +18,7 @@ export function createChatRouter(provider: AiProvider, knowledge: KnowledgeSearc
     const controller = new AbortController();
     res.on('close', () => controller.abort());
 
-    const start = await startChatStream(provider, knowledge, parsed.messages, controller.signal);
+    const start = await startChatStream(provider, knowledge, isAboutFoundation, parsed.messages, controller.signal);
     if (!start.ok) {
       if (controller.signal.aborted) return;
       console.error(

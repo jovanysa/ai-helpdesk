@@ -1,30 +1,45 @@
 import { KnowledgeSource } from './knowledge-base';
 
+export type ReplyLanguage = 'ar' | 'en';
+
 export const REFUSAL_AR =
   'معنديش المعلومة دي. أقدر أساعدك في أي سؤال عن جمعية الخير، أو كلّمنا على 0100 000 0000.';
 export const REFUSAL_EN =
   "I don't have that information. I can help with questions about Al-Khair Foundation, or call us on 0100 000 0000.";
 
+export const REFUSALS: Record<ReplyLanguage, string> = { ar: REFUSAL_AR, en: REFUSAL_EN };
+
+/** Any Arabic letter means an Arabic reply; decided in code because the model often got it wrong. */
+export function detectLanguage(text: string): ReplyLanguage {
+  return /[؀-ۿ]/.test(text) ? 'ar' : 'en';
+}
+
+const LANGUAGE_RULE: Record<ReplyLanguage, string> = {
+  ar: 'Reply in Arabic script only. Do not use any other language or Latin letters.',
+  en: 'Reply in English only.',
+};
+
 /**
- * Instructions sent to the model before every conversation, with the knowledge
- * chunks retrieved for the customer's question. All organization details are fictional.
+ * Instructions for the answering model, built for each message from the retrieved
+ * knowledge. The rules come after the sources: small models follow what they read last.
  */
-export function buildSystemPrompt(sources: Pick<KnowledgeSource, 'title' | 'content'>[]): string {
+export function buildSystemPrompt(
+  sources: Pick<KnowledgeSource, 'title' | 'content'>[],
+  language: ReplyLanguage,
+): string {
   const listed = sources.length
     ? sources.map((source, i) => `[${i + 1}] ${source.title}\n${source.content}`).join('\n\n')
     : '(none)';
 
   return `You are the customer support assistant of "جمعية الخير" (Al-Khair Foundation), a charity in Cairo, Egypt.
 
-RULES
-1. Answer in the same language the user wrote in. Arabic (including Egyptian Arabic) gets Arabic, English gets English.
-2. Keep answers short and clear. Use bullet points when listing steps.
-3. Answer ONLY with facts from the SOURCES below. Never use outside knowledge and never invent numbers, dates or names.
-4. If the SOURCES do not answer the question, or the question is not about the foundation, do not answer it. Reply with exactly one of these sentences, in the user's language:
-   - Arabic: "${REFUSAL_AR}"
-   - English: "${REFUSAL_EN}"
-5. Never ask for bank card numbers, passwords or verification codes.
-
 SOURCES:
-${listed}`;
+${listed}
+
+RULES
+1. ${LANGUAGE_RULE[language]}
+2. Answer ONLY with facts from the SOURCES above. Never use outside knowledge and never invent numbers, dates or names.
+3. If the SOURCES do not answer the question, reply with exactly this sentence and nothing else: "${REFUSALS[language]}"
+4. Keep answers short and clear. Use bullet points when listing steps.
+5. Never ask for bank card numbers, passwords or verification codes.`;
 }

@@ -1,6 +1,7 @@
 import { AiMessage, AiProvider } from './ai-provider';
-import { buildSystemPrompt } from './charity-prompt';
-import { KnowledgeSearch } from './knowledge-base';
+import { REFUSALS, buildSystemPrompt, detectLanguage } from './charity-prompt';
+import { KnowledgeSearch, KnowledgeSource } from './knowledge-base';
+import { TopicGate } from './topic-gate';
 
 export const MAX_MESSAGES = 10;
 export const MAX_USER_MESSAGE_LENGTH = 2000;
@@ -61,24 +62,32 @@ export function buildSearchQuery(turns: ChatTurn[]): string {
 }
 
 /**
- * Finds the knowledge for the question, then starts the AI reply and waits for its
- * first piece, so a failure can still be reported with a normal HTTP status
- * before any SSE bytes are sent.
+ * Checks the topic and finds the knowledge for the question, then starts the AI
+ * reply and waits for its first piece, so a failure can still be reported with a
+ * normal HTTP status before any SSE bytes are sent.
  */
 export async function startChatStream(
   provider: AiProvider,
   knowledge: KnowledgeSearch,
+  isAboutFoundation: TopicGate,
   turns: ChatTurn[],
   signal: AbortSignal,
 ): Promise<ChatStreamStart> {
-  let sources;
+  const query = buildSearchQuery(turns);
+  const language = detectLanguage(turns.at(-1)?.content ?? '');
+
+  let onTopic: boolean;
+  let sources: KnowledgeSource[];
   try {
-    sources = await knowledge.search(buildSearchQuery(turns));
+    [onTopic, sources] = await Promise.all([checkTopic(isAboutFoundation, query), knowledge.search(query)]);
   } catch (error) {
     return { ok: false, error };
   }
 
-  const messages: AiMessage[] = [{ role: 'system', content: buildSystemPrompt(sources) }, ...turns];
+  // Off-topic: the code answers with the fixed sentence; the model is not asked at all.
+  if (!onTopic) return { ok: true, events: refusalEvents(REFUSALS[language]) };
+
+  const messages: AiMessage[] = [{ role: 'system', content: buildSystemPrompt(sources, language) }, ...turns];
   const iterator = provider.streamChat(messages, signal)[Symbol.asyncIterator]();
 
   let first: IteratorResult<string>;
@@ -89,6 +98,22 @@ export async function startChatStream(
   }
   const sourcesEvent = toSse({ type: 'sources', sources: sources.map(({ title, file }) => ({ title, file })) });
   return { ok: true, events: sseEvents(sourcesEvent, first, iterator, signal) };
+}
+
+/** If the check itself fails, answer anyway: the prompt's refusal rule is the fallback. */
+async function checkTopic(isAboutFoundation: TopicGate, query: string): Promise<boolean> {
+  try {
+    return await isAboutFoundation(query);
+  } catch (error) {
+    console.error('[chat] topic check failed:', error instanceof Error ? error.message : error);
+    return true;
+  }
+}
+
+async function* refusalEvents(refusal: string): AsyncGenerator<string> {
+  yield toSse({ type: 'sources', sources: [] });
+  yield toSse({ type: 'token', text: refusal });
+  yield toSse({ type: 'done' });
 }
 
 async function* sseEvents(
