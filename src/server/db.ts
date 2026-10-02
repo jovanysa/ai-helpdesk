@@ -36,6 +36,15 @@ CREATE TABLE IF NOT EXISTS tickets (
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS knowledge_chunks (
+  id INTEGER PRIMARY KEY,
+  file TEXT NOT NULL,
+  title TEXT NOT NULL,
+  content TEXT NOT NULL,
+  content_hash TEXT NOT NULL UNIQUE,
+  embedding BLOB NOT NULL
+);
 `;
 
 /** Opens (and creates if needed) the helpdesk database with its schema. */

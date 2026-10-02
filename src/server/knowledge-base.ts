@@ -1,0 +1,101 @@
+import { createHash } from 'node:crypto';
+import type { DatabaseSync } from 'node:sqlite';
+import { EmbedFn } from './embedder';
+import { KnowledgeChunk } from './knowledge-chunks';
+import { cosine, fromBlob, toBlob } from './vectors';
+
+export interface KnowledgeSource {
+  file: string;
+  title: string;
+  content: string;
+  score: number;
+}
+
+export type KnowledgeSearch = Pick<KnowledgeBase, 'search'>;
+
+interface ChunkRow {
+  file: string;
+  title: string;
+  content: string;
+  content_hash: string;
+  embedding: Uint8Array;
+}
+
+export class KnowledgeBase {
+  private indexing: Promise<void> | null = null;
+
+  constructor(
+    private readonly db: DatabaseSync,
+    private readonly embed: EmbedFn,
+    private readonly loadChunks: () => KnowledgeChunk[],
+    private readonly model: string,
+  ) {}
+
+  /** The k chunks whose meaning is closest to the query, best first. */
+  async search(query: string, k = 3): Promise<KnowledgeSource[]> {
+    await this.ensureIndexed();
+    const rows = this.db
+      .prepare('SELECT file, title, content, content_hash, embedding FROM knowledge_chunks')
+      .all() as unknown as ChunkRow[];
+    if (rows.length === 0) return [];
+
+    const [queryVector] = await this.embed([query]);
+    return rows
+      .map((row) => ({
+        file: row.file,
+        title: row.title,
+        content: row.content,
+        score: cosine(queryVector, fromBlob(row.embedding)),
+      }))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, k);
+  }
+
+  /** Embeds only new or changed chunks and deletes chunks that no longer exist in the files. */
+  async reindex(): Promise<void> {
+    const chunks = this.loadChunks().map((chunk) => ({ ...chunk, hash: this.hash(chunk) }));
+    const existing = new Set(
+      this.db
+        .prepare('SELECT content_hash FROM knowledge_chunks')
+        .all()
+        .map((row) => row['content_hash'] as string),
+    );
+    const fresh = chunks.filter((chunk) => !existing.has(chunk.hash));
+    const vectors = fresh.length > 0 ? await this.embed(fresh.map(embeddingText)) : [];
+
+    const keep = new Set(chunks.map((chunk) => chunk.hash));
+    const insert = this.db.prepare(
+      'INSERT INTO knowledge_chunks (file, title, content, content_hash, embedding) VALUES (?, ?, ?, ?, ?)',
+    );
+    const remove = this.db.prepare('DELETE FROM knowledge_chunks WHERE content_hash = ?');
+
+    this.db.exec('BEGIN');
+    try {
+      for (const hash of existing) if (!keep.has(hash)) remove.run(hash);
+      fresh.forEach((chunk, i) => insert.run(chunk.file, chunk.title, chunk.content, chunk.hash, toBlob(vectors[i])));
+      this.db.exec('COMMIT');
+    } catch (error) {
+      this.db.exec('ROLLBACK');
+      throw error;
+    }
+    console.log(`[knowledge] indexed ${chunks.length} chunks (${fresh.length} new)`);
+  }
+
+  /** Indexes once; if that fails, the next search tries again (e.g. after `ollama pull`). */
+  private ensureIndexed(): Promise<void> {
+    this.indexing ??= this.reindex().catch((error: unknown) => {
+      this.indexing = null;
+      throw error;
+    });
+    return this.indexing;
+  }
+
+  // The model is part of the hash: vectors from different models cannot be compared.
+  private hash(chunk: KnowledgeChunk): string {
+    return createHash('sha256').update(`${this.model}\n${embeddingText(chunk)}`).digest('hex');
+  }
+}
+
+function embeddingText(chunk: KnowledgeChunk): string {
+  return `${chunk.title}\n${chunk.content}`;
+}

@@ -6,13 +6,13 @@ import { openDatabase } from './db';
 const now = new Date().toISOString();
 
 describe('openDatabase', () => {
-  it('creates the three tables', () => {
+  it('creates the four tables', () => {
     const db = openDatabase(':memory:');
     const names = db
       .prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name")
       .all()
       .map((row) => row['name']);
-    expect(names).toEqual(['sessions', 'staff_users', 'tickets']);
+    expect(names).toEqual(['knowledge_chunks', 'sessions', 'staff_users', 'tickets']);
   });
 
   it('can be opened twice on the same file without errors', () => {
