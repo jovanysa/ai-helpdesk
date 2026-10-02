@@ -81,7 +81,8 @@ export class ChatService {
 
   private removeEmptyReply(): void {
     const last = this._messages().at(-1);
-    if (last?.role === 'assistant' && last.content === '') {
+    // The server rejects blank turns, so a whitespace-only reply must go too.
+    if (last?.role === 'assistant' && last.content.trim() === '') {
       this._messages.update((messages) => messages.slice(0, -1));
     }
   }

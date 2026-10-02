@@ -119,6 +119,28 @@ describe('ChatService', () => {
     expect(body.messages.every((m: { content: string }) => m.content.length > 0)).toBe(true);
   });
 
+  it('drops a whitespace-only reply after Stop so the next request stays valid', async () => {
+    fetchMock.mockImplementationOnce(
+      async (_url: string, init: RequestInit) =>
+        new Response(
+          new ReadableStream<Uint8Array>({
+            start(controller) {
+              controller.enqueue(new TextEncoder().encode(token('\n')));
+              init.signal!.addEventListener('abort', () => controller.error(new Error('aborted')));
+            },
+          }),
+        ),
+    );
+
+    const pending = service.send('hi');
+    await vi.waitFor(() => expect(service.messages()[1]?.content).toBe('\n'));
+    service.stop();
+    await pending;
+
+    expect(service.error()).toBeNull();
+    expect(service.messages()).toEqual([{ role: 'user', content: 'hi' }]);
+  });
+
   it('ignores blank messages and messages sent while a reply is streaming', async () => {
     let finish!: (response: Response) => void;
     fetchMock.mockReturnValue(new Promise<Response>((resolve) => (finish = resolve)));
