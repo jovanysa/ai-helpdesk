@@ -1,0 +1,43 @@
+<main class="page">
+  <a routerLink="/">رجوع للمساعد</a>
+  <h1>قدّم طلب</h1>
+
+  @if (ticketId(); as id) {
+    <p class="notice" role="status">تم تسجيل طلبك رقم #{{ id }}، هيتواصل معاك موظف قريب.</p>
+  } @else {
+    <p>اكتب بياناتك وطلبك، وهيتواصل معاك موظف من الجمعية.</p>
+    <form class="form" [formGroup]="form" (ngSubmit)="submit()">
+      <label class="field">
+        الاسم
+        <input formControlName="name" autocomplete="name" dir="auto" />
+        @if (form.controls.name.touched && form.controls.name.invalid) {
+          <small class="field-error">اكتب اسمك (من 2 لـ 100 حرف).</small>
+        }
+      </label>
+
+      <label class="field">
+        رقم التليفون
+        <input formControlName="phone" type="tel" inputmode="tel" autocomplete="tel" dir="ltr" />
+        @if (form.controls.phone.touched && form.controls.phone.invalid) {
+          <small class="field-error">رقم التليفون غير صحيح.</small>
+        }
+      </label>
+
+      <label class="field">
+        طلبك
+        <textarea formControlName="description" rows="5" dir="auto" maxlength="2000"></textarea>
+        @if (form.controls.description.touched && form.controls.description.invalid) {
+          <small class="field-error">اكتب طلبك (5 حروف على الأقل).</small>
+        }
+      </label>
+
+      @if (failed()) {
+        <p class="notice notice--error" role="alert">حصل خطأ، حاول تاني.</p>
+      }
+
+      <div class="actions">
+        <button class="btn" type="submit" [disabled]="form.invalid || submitting()">إرسال الطلب</button>
+      </div>
+    </form>
+  }
+</main>

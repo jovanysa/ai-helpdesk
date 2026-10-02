@@ -1,0 +1,36 @@
+<section class="escalation" aria-label="تحويل لموظف">
+  @if (ticketId(); as id) {
+    <p class="notice" role="status">تم تسجيل طلبك رقم #{{ id }}، هيتواصل معاك موظف قريب.</p>
+    <div class="actions">
+      <button type="button" class="btn btn--secondary" (click)="closed.emit()">تمام</button>
+    </div>
+  } @else {
+    <p class="escalation__intro">سيب بياناتك وهيكلّمك موظف من الجمعية، ومعاه المحادثة دي.</p>
+    <form class="escalation__form" [formGroup]="form" (ngSubmit)="submit()">
+      <label class="field">
+        الاسم
+        <input formControlName="name" autocomplete="name" dir="auto" />
+      </label>
+      <label class="field">
+        رقم التليفون
+        <input formControlName="phone" type="tel" inputmode="tel" autocomplete="tel" dir="ltr" />
+        @if (form.controls.phone.touched && form.controls.phone.invalid) {
+          <small class="field-error">رقم التليفون غير صحيح.</small>
+        }
+      </label>
+      <label class="field escalation__note">
+        ملاحظة (اختياري)
+        <textarea formControlName="note" rows="2" dir="auto" maxlength="2000"></textarea>
+      </label>
+
+      @if (failed()) {
+        <p class="notice notice--error" role="alert">حصل خطأ، حاول تاني.</p>
+      }
+
+      <div class="actions">
+        <button type="submit" class="btn" [disabled]="form.invalid || submitting()">إرسال</button>
+        <button type="button" class="btn btn--secondary" (click)="closed.emit()">إلغاء</button>
+      </div>
+    </form>
+  }
+</section>

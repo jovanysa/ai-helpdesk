@@ -1,5 +1,8 @@
+import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 import { Chat } from './chat';
 import { ChatService } from './chat.service';
 import { ChatMessage } from './message.model';
@@ -15,11 +18,16 @@ describe('Chat', () => {
     };
     await TestBed.configureTestingModule({
       imports: [Chat],
-      providers: [{ provide: ChatService, useValue: fake }],
+      providers: [
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: ChatService, useValue: fake },
+      ],
     }).compileComponents();
     const fixture = TestBed.createComponent(Chat);
     await fixture.whenStable();
-    return { fake, element: fixture.nativeElement as HTMLElement };
+    return { fake, fixture, element: fixture.nativeElement as HTMLElement };
   }
 
   it('shows the three suggestions when the chat is empty and sends the clicked one', async () => {
@@ -63,5 +71,33 @@ describe('Chat', () => {
     const { element } = await setup({ error: 'خدمة المساعد غير متاحة حاليًا، حاول تاني.' });
 
     expect(element.querySelector('[role=alert]')?.textContent).toContain('غير متاحة');
+  });
+
+  it('shows the escalate button only after an assistant reply and not while streaming', async () => {
+    const empty = await setup();
+    expect(empty.element.querySelector('.chat__escalate')).toBeNull();
+    TestBed.resetTestingModule();
+
+    const answered = await setup({ messages: [{ role: 'user', content: 'hi' }, { role: 'assistant', content: 'أهلًا' }] });
+    expect(answered.element.querySelector('.chat__escalate')?.textContent).toContain('حوّل لموظف');
+
+    answered.fake.isStreaming.set(true);
+    await answered.fixture.whenStable();
+    expect(answered.element.querySelector('.chat__escalate')).toBeNull();
+  });
+
+  it('opens the escalation form when the button is clicked', async () => {
+    const { fixture, element } = await setup({
+      messages: [{ role: 'user', content: 'hi' }, { role: 'assistant', content: 'أهلًا' }],
+    });
+    element.querySelector<HTMLButtonElement>('.chat__escalate button')!.click();
+    await fixture.whenStable();
+    expect(element.querySelector('app-escalation-form')).not.toBeNull();
+    expect(element.querySelector('.chat__escalate')).toBeNull();
+  });
+
+  it('links to the support form', async () => {
+    const { element } = await setup();
+    expect(element.querySelector('a[href="/support/new"]')?.textContent).toContain('قدّم طلب');
   });
 });

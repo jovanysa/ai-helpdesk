@@ -1,0 +1,25 @@
+.escalation {
+  margin: 0 16px 12px;
+  padding: 14px;
+  border: 1px solid var(--c-border);
+  border-radius: 14px;
+  background: var(--c-surface);
+}
+
+.escalation__intro {
+  margin: 0 0 12px;
+  color: var(--c-muted);
+  font-size: 0.9rem;
+}
+
+.escalation__form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.escalation__note,
+.escalation__form .notice,
+.escalation__form .actions {
+  grid-column: 1 / -1;
+}

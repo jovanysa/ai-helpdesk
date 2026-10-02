@@ -1,7 +1,10 @@
 <main class="chat">
   <header class="chat__header">
-    <h1>جمعية الخير</h1>
-    <p>Al-Khair Foundation · مساعد خدمة العملاء</p>
+    <div>
+      <h1>جمعية الخير</h1>
+      <p>Al-Khair Foundation · مساعد خدمة العملاء</p>
+    </div>
+    <a routerLink="/support/new">قدّم طلب</a>
   </header>
 
   <section class="chat__messages" #messageList aria-live="polite">
@@ -21,6 +24,14 @@
       <div class="message" [class.message--user]="message.role === 'user'" dir="auto">{{ message.content }}@if (last && message.role === 'assistant' && chat.isStreaming()) {<span class="cursor">▌</span>}</div>
     }
   </section>
+
+  @if (escalating()) {
+    <app-escalation-form (closed)="escalating.set(false)" />
+  } @else if (canEscalate()) {
+    <div class="chat__escalate">
+      <button type="button" class="btn btn--secondary" (click)="escalating.set(true)">حوّل لموظف</button>
+    </div>
+  }
 
   @if (chat.error(); as error) {
     <p class="chat__error" role="alert">{{ error }}</p>

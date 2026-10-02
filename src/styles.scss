@@ -1,3 +1,31 @@
+:root {
+  --c-bg: #f6f7f4;
+  --c-surface: #ffffff;
+  --c-text: #1d2521;
+  --c-muted: #5d6a63;
+  --c-brand: #1f7a55;
+  --c-brand-ink: #ffffff;
+  --c-user: #e3f1ea;
+  --c-border: #dde3df;
+  --c-danger: #b42318;
+  --c-warn: #9a6700;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --c-bg: #121614;
+    --c-surface: #1b211e;
+    --c-text: #e7ece9;
+    --c-muted: #9aa8a0;
+    --c-brand: #3fb985;
+    --c-brand-ink: #08130e;
+    --c-user: #1f3a2d;
+    --c-border: #2b3430;
+    --c-danger: #f97066;
+    --c-warn: #e3b341;
+  }
+}
+
 *, *::before, *::after { box-sizing: border-box; }
 
 html, body { height: 100%; }
@@ -5,9 +33,85 @@ html, body { height: 100%; }
 body {
   margin: 0;
   font-family: system-ui, -apple-system, "Segoe UI", Tahoma, "Noto Sans Arabic", sans-serif;
-  background: #f6f7f4;
+  background: var(--c-bg);
+  color: var(--c-text);
 }
 
-@media (prefers-color-scheme: dark) {
-  body { background: #121614; }
+a { color: var(--c-brand); }
+
+.page {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 16px;
+
+  h1 { font-size: 1.4rem; color: var(--c-brand); }
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.9rem;
+  font-weight: 600;
+
+  input, textarea, select {
+    padding: 10px 12px;
+    border: 1px solid var(--c-border);
+    border-radius: 10px;
+    background: var(--c-surface);
+    color: var(--c-text);
+    font: inherit;
+    font-size: 1rem;
+    font-weight: 400;
+  }
+
+  textarea { resize: vertical; }
+}
+
+.field-error {
+  color: var(--c-danger);
+  font-weight: 400;
+}
+
+.btn {
+  padding: 10px 18px;
+  border: 1px solid var(--c-brand);
+  border-radius: 12px;
+  background: var(--c-brand);
+  color: var(--c-brand-ink);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+
+  &:disabled { opacity: 0.5; cursor: default; }
+
+  &--secondary {
+    background: transparent;
+    color: var(--c-brand);
+  }
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.notice {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--c-user);
+
+  &--error {
+    padding: 0;
+    background: transparent;
+    color: var(--c-danger);
+  }
 }

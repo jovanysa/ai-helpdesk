@@ -1,8 +1,11 @@
-import { Component, ElementRef, afterRenderEffect, inject, signal, viewChild } from '@angular/core';
+import { Component, ElementRef, afterRenderEffect, computed, inject, signal, viewChild } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { ChatService, MAX_MESSAGE_LENGTH } from './chat.service';
+import { EscalationForm } from './escalation-form';
 
 @Component({
   selector: 'app-chat',
+  imports: [RouterLink, EscalationForm],
   templateUrl: './chat.html',
   styleUrl: './chat.scss',
 })
@@ -11,6 +14,11 @@ export class Chat {
   protected readonly draft = signal('');
   protected readonly maxLength = MAX_MESSAGE_LENGTH;
   protected readonly suggestions = ['أتبرع إزاي؟', 'عايز أتطوع', 'محتاج مساعدة'];
+  protected readonly escalating = signal(false);
+  /** Offer a human once the assistant has answered at least once. */
+  protected readonly canEscalate = computed(
+    () => !this.chat.isStreaming() && this.chat.messages().some((m) => m.role === 'assistant' && m.content.trim()),
+  );
 
   private readonly messageList = viewChild.required<ElementRef<HTMLElement>>('messageList');
 
