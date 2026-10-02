@@ -1,0 +1,74 @@
+<main class="page">
+  <header class="list-header">
+    <h1>التذاكر</h1>
+    <div class="actions">
+      <span class="user">{{ auth.user()?.name }}</span>
+      <button class="btn btn--secondary" type="button" (click)="load()" [disabled]="loading()">تحديث</button>
+      <button class="btn btn--secondary" type="button" (click)="logout()">خروج</button>
+    </div>
+  </header>
+
+  <div class="filters">
+    <label class="field">
+      الحالة
+      <select data-filter="status" (change)="setFilter('status', $event)">
+        <option value="">الكل</option>
+        @for (status of statuses; track status) {
+          <option [value]="status">{{ statusLabels[status] }}</option>
+        }
+      </select>
+    </label>
+    <label class="field">
+      النوع
+      <select data-filter="category" (change)="setFilter('category', $event)">
+        <option value="">الكل</option>
+        @for (category of categories; track category) {
+          <option [value]="category">{{ categoryLabels[category] }}</option>
+        }
+      </select>
+    </label>
+    <label class="field">
+      الأولوية
+      <select data-filter="priority" (change)="setFilter('priority', $event)">
+        <option value="">الكل</option>
+        @for (priority of priorities; track priority) {
+          <option [value]="priority">{{ priorityLabels[priority] }}</option>
+        }
+      </select>
+    </label>
+  </div>
+
+  @if (failed()) {
+    <p class="notice notice--error" role="alert">حصل خطأ، حاول تاني.</p>
+  } @else if (!loading() && tickets().length === 0) {
+    <p class="notice">مفيش تذاكر.</p>
+  }
+
+  <ul class="tickets">
+    @for (ticket of tickets(); track ticket.id) {
+      <li>
+        <a class="ticket" [routerLink]="['/staff/tickets', ticket.id]">
+          <span class="ticket__top">
+            <strong>#{{ ticket.id }}</strong>
+            <span dir="auto">{{ ticket.name }}</span>
+            <time class="ticket__date">{{ ticket.createdAt | date: 'short' }}</time>
+          </span>
+          <span class="ticket__description" dir="auto">{{ ticket.description }}</span>
+          <span class="ticket__badges">
+            @if (ticket.classificationStatus === 'done') {
+              @if (ticket.category) {
+                <span class="badge">{{ categoryLabels[ticket.category] }}</span>
+              }
+              @if (ticket.priority) {
+                <span class="badge" [class.badge--high]="ticket.priority === 'high'" [class.badge--medium]="ticket.priority === 'medium'">{{ priorityLabels[ticket.priority] }}</span>
+              }
+            } @else {
+              <span class="badge badge--muted">{{ ticket.classificationStatus === 'pending' ? 'جاري التصنيف…' : 'فشل التصنيف' }}</span>
+            }
+            <span class="badge badge--status">{{ statusLabels[ticket.status] }}</span>
+          </span>
+        </a>
+      </li>
+    }
+  </ul>
+</main>

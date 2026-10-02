@@ -1,0 +1,83 @@
+<main class="page">
+  <a routerLink="/staff">كل التذاكر</a>
+
+  @if (notFound()) {
+    <p class="notice">التذكرة غير موجودة</p>
+  } @else if (ticket(); as ticket) {
+    <h1>تذكرة #{{ ticket.id }}</h1>
+
+    <dl class="details">
+      <dt>الاسم</dt>
+      <dd dir="auto">{{ ticket.name }}</dd>
+      <dt>التليفون</dt>
+      <dd><a [href]="'tel:' + ticket.phone" dir="ltr">{{ ticket.phone }}</a></dd>
+      <dt>المصدر</dt>
+      <dd>{{ ticket.source === 'chat' ? 'من الشات' : 'من الفورم' }}</dd>
+      <dt>التاريخ</dt>
+      <dd>{{ ticket.createdAt | date: 'medium' }}</dd>
+    </dl>
+
+    <h2>الطلب</h2>
+    <p class="description" dir="auto">{{ ticket.description }}</p>
+
+    <div class="edit">
+      <label class="field">
+        الحالة
+        <select data-field="status" (change)="update('status', $event)" [disabled]="saving()">
+          @for (status of statuses; track status) {
+            <option [value]="status" [selected]="status === ticket.status">{{ statusLabels[status] }}</option>
+          }
+        </select>
+      </label>
+      <label class="field">
+        النوع
+        <select data-field="category" (change)="update('category', $event)" [disabled]="saving()">
+          <option value="" disabled [selected]="!ticket.category">—</option>
+          @for (category of categories; track category) {
+            <option [value]="category" [selected]="category === ticket.category">{{ categoryLabels[category] }}</option>
+          }
+        </select>
+      </label>
+      <label class="field">
+        الأولوية
+        <select data-field="priority" (change)="update('priority', $event)" [disabled]="saving()">
+          <option value="" disabled [selected]="!ticket.priority">—</option>
+          @for (priority of priorities; track priority) {
+            <option [value]="priority" [selected]="priority === ticket.priority">{{ priorityLabels[priority] }}</option>
+          }
+        </select>
+      </label>
+    </div>
+
+    <div class="classification actions">
+      <span>
+        التصنيف:
+        @switch (ticket.classificationStatus) {
+          @case ('done') { تم }
+          @case ('pending') { جاري التصنيف… }
+          @case ('failed') { فشل التصنيف }
+        }
+      </span>
+      @if (ticket.classificationStatus !== 'done') {
+        <button class="btn btn--secondary" type="button" (click)="reclassify()" [disabled]="saving()">إعادة التصنيف</button>
+      }
+      <button class="btn btn--secondary" type="button" (click)="load()">تحديث</button>
+    </div>
+
+    @if (ticket.transcript) {
+      <h2>المحادثة</h2>
+      <ol class="transcript">
+        @for (message of ticket.transcript; track $index) {
+          <li [class.from-customer]="message.role === 'user'">
+            <strong>{{ message.role === 'user' ? 'العميل' : 'المساعد' }}</strong>
+            <span dir="auto">{{ message.content }}</span>
+          </li>
+        }
+      </ol>
+    }
+  }
+
+  @if (failed()) {
+    <p class="notice notice--error" role="alert">حصل خطأ، حاول تاني.</p>
+  }
+</main>

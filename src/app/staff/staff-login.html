@@ -1,0 +1,21 @@
+<main class="page login">
+  <h1>دخول الموظفين</h1>
+  <form class="form" [formGroup]="form" (ngSubmit)="submit()">
+    <label class="field">
+      البريد الإلكتروني
+      <input formControlName="email" type="email" autocomplete="username" dir="ltr" />
+    </label>
+    <label class="field">
+      كلمة المرور
+      <input formControlName="password" type="password" autocomplete="current-password" dir="ltr" />
+    </label>
+
+    @if (error(); as message) {
+      <p class="notice notice--error" role="alert">{{ message }}</p>
+    }
+
+    <div class="actions">
+      <button class="btn" type="submit" [disabled]="form.invalid || submitting()">دخول</button>
+    </div>
+  </form>
+</main>

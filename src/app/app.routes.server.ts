@@ -1,8 +1,8 @@
 import { RenderMode, ServerRoute } from '@angular/ssr';
 
 export const serverRoutes: ServerRoute[] = [
-  {
-    path: '**',
-    renderMode: RenderMode.Prerender
-  }
+  // Staff pages depend on the visitor's session cookie, so they render in the browser.
+  { path: 'staff', renderMode: RenderMode.Client },
+  { path: 'staff/**', renderMode: RenderMode.Client },
+  { path: '**', renderMode: RenderMode.Prerender },
 ];
