@@ -1,1 +1,13 @@
-/* You can add global styles to this file, and also import other style files */
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body { height: 100%; }
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", Tahoma, "Noto Sans Arabic", sans-serif;
+  background: #f6f7f4;
+}
+
+@media (prefers-color-scheme: dark) {
+  body { background: #121614; }
+}

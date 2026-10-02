@@ -1,0 +1,46 @@
+<main class="chat">
+  <header class="chat__header">
+    <h1>جمعية الخير</h1>
+    <p>Al-Khair Foundation · مساعد خدمة العملاء</p>
+  </header>
+
+  <section class="chat__messages" #messageList aria-live="polite">
+    @if (chat.messages().length === 0) {
+      <div class="chat__empty">
+        <p>أهلًا بيك! اسألني عن التبرع أو التطوع أو طلب المساعدة.</p>
+        <p dir="ltr">Ask me about donating, volunteering or requesting help.</p>
+        <div class="chat__suggestions">
+          @for (suggestion of suggestions; track suggestion) {
+            <button type="button" class="suggestion" (click)="chat.send(suggestion)">{{ suggestion }}</button>
+          }
+        </div>
+      </div>
+    }
+
+    @for (message of chat.messages(); track $index; let last = $last) {
+      <div class="message" [class.message--user]="message.role === 'user'" dir="auto">{{ message.content }}@if (last && message.role === 'assistant' && chat.isStreaming()) {<span class="cursor">▌</span>}</div>
+    }
+  </section>
+
+  @if (chat.error(); as error) {
+    <p class="chat__error" role="alert">{{ error }}</p>
+  }
+
+  <form class="chat__composer" (submit)="onSubmit($event)">
+    <textarea
+      rows="1"
+      dir="auto"
+      aria-label="رسالتك / Your message"
+      placeholder="اكتب سؤالك... / Type your question..."
+      [attr.maxlength]="maxLength"
+      [value]="draft()"
+      (input)="onInput($event)"
+      (keydown.enter)="onEnter($event)"
+    ></textarea>
+    @if (chat.isStreaming()) {
+      <button type="button" class="btn btn--stop" (click)="chat.stop()">إيقاف</button>
+    } @else {
+      <button type="submit" class="btn" [disabled]="!draft().trim()">إرسال</button>
+    }
+  </form>
+</main>
