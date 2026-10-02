@@ -85,4 +85,24 @@ describe('TicketClassifier', () => {
     await new TicketClassifier(tickets, classify).classifyInBackground(42);
     expect(classify).not.toHaveBeenCalled();
   });
+
+  it('classifyInBackground never rejects, even when the database write fails', async () => {
+    const tickets = new TicketRepository(openDatabase(':memory:'));
+    tickets.create(ticket);
+    vi.spyOn(tickets, 'markClassificationFailed').mockImplementation(() => {
+      throw new Error('database is locked');
+    });
+    const classifier = new TicketClassifier(tickets, async () => {
+      throw new Error('Ollama down');
+    });
+    await expect(classifier.classifyInBackground(1)).resolves.toBeUndefined();
+  });
+
+  it('classifyInBackground never rejects when reading the ticket fails', async () => {
+    const tickets = new TicketRepository(openDatabase(':memory:'));
+    vi.spyOn(tickets, 'get').mockImplementation(() => {
+      throw new Error('database is locked');
+    });
+    await expect(new TicketClassifier(tickets, vi.fn()).classifyInBackground(1)).resolves.toBeUndefined();
+  });
 });

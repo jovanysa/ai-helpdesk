@@ -45,6 +45,8 @@ export function openDatabase(path: string): DatabaseSync {
 
   const db = new Database(path);
   db.exec('PRAGMA foreign_keys = ON;');
+  // Wait up to 5s for a lock (e.g. the file is open in a DB browser) instead of failing at once.
+  db.exec('PRAGMA busy_timeout = 5000;');
   // WAL lets reads continue while a write is in progress; it needs a real file.
   if (!inMemory) db.exec('PRAGMA journal_mode = WAL;');
   db.exec(SCHEMA);

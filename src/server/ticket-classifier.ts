@@ -97,14 +97,23 @@ export class TicketClassifier {
 
   /** Classifies a ticket without the caller waiting for the model. Never rejects. */
   async classifyInBackground(id: number): Promise<void> {
-    const ticket = this.tickets.get(id);
-    if (!ticket) return;
+    // Callers do not await this, so anything thrown here would crash the whole server.
     try {
+      const ticket = this.tickets.get(id);
+      if (!ticket) return;
       const result = await this.classify(ticket.description, ticket.transcript);
       this.tickets.applyClassification(id, result);
     } catch (error) {
-      console.error(`[tickets] classification of #${id} failed:`, error instanceof Error ? error.message : error);
-      this.tickets.markClassificationFailed(id);
+      log(id, error);
+      try {
+        this.tickets.markClassificationFailed(id);
+      } catch (markError) {
+        log(id, markError);
+      }
     }
   }
+}
+
+function log(id: number, error: unknown): void {
+  console.error(`[tickets] classification of #${id} failed:`, error instanceof Error ? error.message : error);
 }

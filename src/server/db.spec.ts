@@ -35,4 +35,9 @@ describe('openDatabase', () => {
       db.prepare('INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?, ?, ?)').run('h', 999, now),
     ).toThrow(/FOREIGN KEY constraint failed/);
   });
+
+  it('waits for a locked database instead of failing at once', () => {
+    const db = openDatabase(':memory:');
+    expect(db.prepare('PRAGMA busy_timeout').get()?.['timeout']).toBe(5000);
+  });
 });
