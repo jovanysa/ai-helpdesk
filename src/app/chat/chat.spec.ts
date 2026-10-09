@@ -185,6 +185,15 @@ describe('Chat', () => {
       await fixture.whenStable();
       expect(box.scrollTop).toBe(100);
     });
+
+    it('scrolls again when the reply ends and the escalate button takes room below the list', async () => {
+      const { fake, fixture, element } = await setup({ messages: [{ role: 'user', content: 'hi' }, { role: 'assistant', content: 'a b' }], isStreaming: true });
+      const box = fakeLayout(element.querySelector<HTMLElement>('.chat__messages')!);
+      box.scrollTop = 0;
+      fake.isStreaming.set(false); // the list itself does not change, only what is around it
+      await fixture.whenStable();
+      expect(box.scrollTop).toBe(box.scrollHeight);
+    });
   });
 });
 

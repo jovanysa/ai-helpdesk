@@ -33,7 +33,12 @@ export class Chat {
     // leave them there. "At the bottom" is tracked from scroll events, so the list's
     // own growth never counts as the reader moving away.
     afterRenderEffect(() => {
+      // Everything that changes the list's content or the space around it.
       this.chat.messages();
+      this.chat.isStreaming();
+      this.chat.error();
+      this.escalating();
+      this.escalatedTicketId();
       if (!this.followReply) return;
       const list = this.messageList().nativeElement;
       list.scrollTop = list.scrollHeight;
