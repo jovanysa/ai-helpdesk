@@ -153,6 +153,16 @@ describe('GapsPage', () => {
       expect(ctx.element.querySelector('.gap__answer-toggle')).not.toBeNull();
     });
 
+    it('explains when someone else already handled the question, and reloads', async () => {
+      const ctx = await openForm();
+      await type(ctx, '.answer-form textarea', 'أيوه، عندنا فرع.');
+      ctx.element.querySelector<HTMLButtonElement>('.answer-form button[type=submit]')!.click();
+      ctx.http.expectOne({ method: 'POST', url: '/api/gaps/answer' }).flush({}, { status: 409, statusText: 'Conflict' });
+      await ctx.fixture.whenStable();
+      expect(ctx.element.querySelector('[role=status]')?.textContent).toContain('حد تاني');
+      ctx.http.expectOne((r) => r.method === 'GET' && r.url === '/api/gaps').flush([]);
+    });
+
     it('clears the saved notice when switching tabs', async () => {
       const ctx = await openForm();
       await type(ctx, '.answer-form textarea', 'أيوه، عندنا فرع في إسكندرية.');

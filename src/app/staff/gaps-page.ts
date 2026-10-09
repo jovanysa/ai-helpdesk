@@ -117,6 +117,12 @@ export class GapsPage implements OnInit {
       },
       error: (error: unknown) => {
         this.saving.set(false);
+        if (error instanceof HttpErrorResponse && error.status === 409) {
+          this.answering.set(null);
+          this.notice.set('السؤال ده حد تاني جاوبه أو قفله خلاص، فاتحدّثت القايمة.');
+          this.load();
+          return;
+        }
         this.answerError.set(
           error instanceof HttpErrorResponse && error.status === 503
             ? 'الإجابة اتحفظت في ملف المعرفة، بس الفهرس متحدّثش (Ollama شغال؟). اعمل restart للسيرفر.'
