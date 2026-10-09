@@ -50,4 +50,11 @@ describe('auth handlers', () => {
   it('me without a token is 401', () => {
     expect(auth.me(undefined).status).toBe(401);
   });
+
+  it('logging in again replaces the session the browser already had', () => {
+    const first = readSessionToken(auth.login({ email: 'admin@x.example', password: 'pw123456' }).setCookie)!;
+    const second = readSessionToken(auth.login({ email: 'admin@x.example', password: 'pw123456' }, first).setCookie)!;
+    expect(auth.me(first).status).toBe(401);
+    expect(auth.me(second).status).toBe(200);
+  });
 });

@@ -43,4 +43,14 @@ describe('SessionStore', () => {
   it('returns undefined for an unknown token', () => {
     expect(sessions.findUser('nope')).toBeUndefined();
   });
+
+  it('pruneExpired removes only expired sessions', () => {
+    const old = sessions.create(user.id);
+    clock = new Date(clock.getTime() + SESSION_TTL_MS + 1);
+    const fresh = sessions.create(user.id);
+    expect(sessions.pruneExpired()).toBe(1);
+    expect(rowCount()).toBe(1);
+    expect(sessions.findUser(fresh.token)).toEqual(user);
+    expect(sessions.findUser(old.token)).toBeUndefined();
+  });
 });

@@ -39,4 +39,18 @@ describe('StaffRepository', () => {
     expect(staff.authenticate('a@x.example', 'first-pass')?.name).toBe('A');
     expect(db.prepare('SELECT COUNT(*) AS n FROM staff_users').get()?.['n']).toBe(1);
   });
+
+  it('takes about as long for an unknown email as for a wrong password', () => {
+    staff.create('a@x.example', 'A', 'pw123456');
+    const time = (email: string) => {
+      const start = performance.now();
+      for (let i = 0; i < 3; i++) staff.authenticate(email, 'wrong-password');
+      return performance.now() - start;
+    };
+    time('a@x.example'); // warm up scrypt
+    const wrongPassword = time('a@x.example');
+    const unknownEmail = time('nobody@x.example');
+    // Before the fix an unknown email returned ~40x faster than a wrong password.
+    expect(unknownEmail).toBeGreaterThan(wrongPassword * 0.5);
+  });
 });

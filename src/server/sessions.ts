@@ -39,6 +39,11 @@ export class SessionStore {
   delete(token: string): void {
     this.db.prepare('DELETE FROM sessions WHERE token_hash = ?').run(hashToken(token));
   }
+
+  /** Removes sessions that have expired (an expired token is otherwise only deleted when it is used). */
+  pruneExpired(): number {
+    return Number(this.db.prepare('DELETE FROM sessions WHERE expires_at <= ?').run(this.now().toISOString()).changes);
+  }
 }
 
 // Only the hash is stored, so a leaked database does not hand out working sessions.

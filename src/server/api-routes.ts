@@ -43,7 +43,7 @@ export function createApiRoutes({ staff, sessions, tickets, classifier, gaps, kn
   const token = (req: ApiRequest) => readSessionToken(req.cookie);
 
   return [
-    { method: 'post', path: '/auth/login', staffOnly: false, handle: (req) => auth.login(req.body) },
+    { method: 'post', path: '/auth/login', staffOnly: false, handle: (req) => auth.login(req.body, token(req)) },
     { method: 'post', path: '/auth/logout', staffOnly: false, handle: (req) => auth.logout(token(req)) },
     { method: 'get', path: '/auth/me', staffOnly: false, handle: (req) => auth.me(token(req)) },
     { method: 'post', path: '/tickets', staffOnly: false, handle: (req) => ticketHandlers.create(req.body) },

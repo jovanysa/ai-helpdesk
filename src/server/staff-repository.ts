@@ -47,9 +47,17 @@ export class StaffRepository {
     const row = this.db
       .prepare('SELECT id, email, name, password_hash FROM staff_users WHERE email = ?')
       .get(normalizeEmail(email)) as unknown as StaffRow | undefined;
-    if (!row || !verifyPassword(password, row.password_hash)) return undefined;
-    return toUser(row);
+    // Without a row, still run one scrypt so a wrong email takes as long as a wrong password
+    // (otherwise response time reveals which emails are staff accounts).
+    const valid = verifyPassword(password, row?.password_hash ?? dummyHash());
+    return row && valid ? toUser(row) : undefined;
   }
+}
+
+let cachedDummyHash: string | undefined;
+function dummyHash(): string {
+  cachedDummyHash ??= hashPassword('timing-equalizer');
+  return cachedDummyHash;
 }
 
 function normalizeEmail(email: string): string {

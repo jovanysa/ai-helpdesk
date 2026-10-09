@@ -9,9 +9,13 @@ export const REFUSAL_EN =
 
 export const REFUSALS: Record<ReplyLanguage, string> = { ar: REFUSAL_AR, en: REFUSAL_EN };
 
-/** Any Arabic letter means an Arabic reply; decided in code because the model often got it wrong. */
-export function detectLanguage(text: string): ReplyLanguage {
-  return /[؀-ۿ]/.test(text) ? 'ar' : 'en';
+/**
+ * Any Arabic letter means an Arabic reply; decided in code because the model often got it wrong.
+ * A message without letters (👍, "123") follows the customer's previous message, else Arabic.
+ */
+export function detectLanguage(text: string, previous?: string): ReplyLanguage {
+  if (!/\p{L}/u.test(text)) return previous ? detectLanguage(previous) : 'ar';
+  return /[\u0600-\u06FF]/.test(text) ? 'ar' : 'en';
 }
 
 const LANGUAGE_RULE: Record<ReplyLanguage, string> = {

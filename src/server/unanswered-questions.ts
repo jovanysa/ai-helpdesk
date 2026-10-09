@@ -14,7 +14,7 @@ export interface GapGroup {
 
 /**
  * Makes the same question typed differently compare equal: case, Arabic diacritics,
- * tatweel, hamza forms, ى/ي, ة/ه, punctuation and extra spaces.
+ * tatweel, hamza forms, ى/ي, ة/ه, Arabic-Indic digits, punctuation and extra spaces.
  * (Grouping by embeddings was tried and could not tell "university fees" from "school fees".)
  */
 export function normalizeQuestion(text: string): string {
@@ -25,6 +25,8 @@ export function normalizeQuestion(text: string): string {
     .replace(/[أإآ]/g, 'ا')
     .replace(/ى/g, 'ي')
     .replace(/ة/g, 'ه')
+    .replace(/[\u0660-\u0669]/g, (d) => String(d.charCodeAt(0) - 0x0660))
+    .replace(/[\u06f0-\u06f9]/g, (d) => String(d.charCodeAt(0) - 0x06f0))
     .replace(/[^\p{L}\p{N}\s]/gu, ' ')
     .replace(/\s+/g, ' ')
     .trim();

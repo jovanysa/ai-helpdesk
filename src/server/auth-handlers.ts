@@ -23,7 +23,8 @@ export function sessionCookie(token: string, maxAgeSeconds: number): string {
 
 export function createAuthHandlers(staff: StaffRepository, sessions: SessionStore) {
   return {
-    login(body: unknown): ApiResult {
+    /** `currentToken` is the session the browser already has; it is replaced, not kept alongside. */
+    login(body: unknown, currentToken?: string): ApiResult {
       const { email, password } = (typeof body === 'object' && body !== null ? body : {}) as Record<string, unknown>;
       if (typeof email !== 'string' || typeof password !== 'string') {
         return { status: 400, body: { error: 'email and password are required' } };
@@ -32,6 +33,7 @@ export function createAuthHandlers(staff: StaffRepository, sessions: SessionStor
       // Same answer for a wrong email and a wrong password.
       if (!user) return { status: 401, body: { error: 'invalid credentials' } };
 
+      if (currentToken) sessions.delete(currentToken);
       const { token } = sessions.create(user.id);
       return { status: 200, body: user, setCookie: sessionCookie(token, SESSION_TTL_MS / 1000) };
     },

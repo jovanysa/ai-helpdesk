@@ -6,6 +6,13 @@ describe('detectLanguage', () => {
     expect(detectLanguage('Vodafone Cash ينفع؟')).toBe('ar');
     expect(detectLanguage('How do I donate?')).toBe('en');
   });
+
+  it('uses the earlier message for a message without letters, and Arabic by default', () => {
+    expect(detectLanguage('👍', 'How do I donate?')).toBe('en');
+    expect(detectLanguage('👍', 'ازاي اتبرع؟')).toBe('ar');
+    expect(detectLanguage('123')).toBe('ar');
+    expect(detectLanguage('ok', 'ازاي اتبرع؟')).toBe('en');
+  });
 });
 
 describe('buildSystemPrompt', () => {

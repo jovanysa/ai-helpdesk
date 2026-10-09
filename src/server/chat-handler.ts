@@ -91,7 +91,7 @@ export async function startChatStream(
     .filter((turn) => turn.role === 'user')
     .map((turn) => turn.content)
     .reverse();
-  const language = detectLanguage(current);
+  const language = detectLanguage(current, previous);
 
   let onTopic: boolean;
   let sources: KnowledgeSource[];

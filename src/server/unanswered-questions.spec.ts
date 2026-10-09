@@ -10,7 +10,8 @@ describe('normalizeQuestion', () => {
     ['بتعلمـــوا الكبار؟', 'بتعلموا الكبار'],
     ['عندي سؤال، بخصوص الإيصال', 'عندي سؤال بخصوص الايصال'],
     ['Do you have a branch in Alexandria?', 'do you have a branch in alexandria'],
-    ['الشكوى رقم ٣', 'الشكوي رقم ٣'],
+    ['الشكوى رقم ٣', 'الشكوي رقم 3'],
+    ['عندي ۳ اطفال', 'عندي 3 اطفال'],
   ])('%s → %s', (input, expected) => {
     expect(normalizeQuestion(input)).toBe(expected);
   });

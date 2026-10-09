@@ -52,6 +52,7 @@ const knowledge = new KnowledgeBase(
 const gaps = new UnansweredRepository(db);
 const gapLog = new GapLog(gaps);
 gaps.pruneResolved(90);
+sessions.pruneExpired();
 
 // The first staff account comes from the environment; an existing one is left unchanged.
 const staffEmail = process.env['STAFF_EMAIL'];
