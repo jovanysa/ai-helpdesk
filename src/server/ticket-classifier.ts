@@ -57,6 +57,7 @@ export function createOllamaClassifier({ url, model, fetchFn = fetch }: OllamaCl
       body: JSON.stringify({
         model,
         stream: false,
+        think: false,
         format: CLASSIFICATION_SCHEMA,
         options: { temperature: 0 },
         messages: [

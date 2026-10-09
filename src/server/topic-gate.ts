@@ -51,6 +51,7 @@ export function createOllamaTopicGate({ url, model, fetchFn = fetch }: OllamaTop
       body: JSON.stringify({
         model,
         stream: false,
+        think: false,
         format: GATE_SCHEMA,
         options: { temperature: 0 },
         messages: [

@@ -12,7 +12,7 @@ describe('createOllamaTopicGate', () => {
     const [url, init] = fetchFn.mock.calls[0];
     expect(url).toBe('http://ollama.test/api/chat');
     const body = JSON.parse(init!.body as string);
-    expect(body).toMatchObject({ model: 'm', stream: false, options: { temperature: 0 } });
+    expect(body).toMatchObject({ model: 'm', stream: false, think: false, options: { temperature: 0 } });
     expect(body.format).toEqual({
       type: 'object',
       properties: { unrelated: { type: 'boolean' } },

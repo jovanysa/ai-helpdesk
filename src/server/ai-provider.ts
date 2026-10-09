@@ -44,6 +44,8 @@ export class OllamaProvider implements AiProvider {
           model,
           messages,
           stream: true,
+          // Thinking models (e.g. qwen3) would reason at length before answering; ignored by others.
+          think: false,
           // Low temperature: fewer surprises (switching language, inventing facts) from a small model.
           options: { num_predict: maxTokens, temperature: 0.2 },
         }),

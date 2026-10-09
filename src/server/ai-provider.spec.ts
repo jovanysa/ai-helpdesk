@@ -71,6 +71,7 @@ describe('OllamaProvider', () => {
       model: 'test-model',
       messages,
       stream: true,
+      think: false,
       options: { num_predict: 512, temperature: 0.2 },
     });
   });
