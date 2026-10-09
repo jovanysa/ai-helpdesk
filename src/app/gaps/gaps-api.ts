@@ -23,4 +23,9 @@ export class GapsApi {
   resolve(reason: GapReason, key: string): Observable<{ resolved: number }> {
     return this.http.post<{ resolved: number }>('/api/gaps/resolve', { reason, key });
   }
+
+  /** Adds the answer to the knowledge (the chat uses it at once) and closes the question. */
+  answer(reason: GapReason, key: string, title: string, answer: string): Observable<{ resolved: number }> {
+    return this.http.post<{ resolved: number }>('/api/gaps/answer', { reason, key, title, answer });
+  }
 }

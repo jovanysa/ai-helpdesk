@@ -82,7 +82,7 @@ function run(
   return startChatStream({ provider, knowledge, isAboutFoundation, isAnswerable, gaps }, turns, signal);
 }
 
-const hoursSource: KnowledgeSource = { file: 'about.md', title: 'المواعيد', content: 'الجمعة: مقفول.', score: 0.9 };
+const hoursSource: KnowledgeSource = { file: 'about.md', title: 'المواعيد', content: 'الجمعة: مقفول.', score: 0.7 };
 
 function fakeKnowledge(sources: KnowledgeSource[] = [hoursSource]): KnowledgeSearch & { search: ReturnType<typeof vi.fn> } {
   return { search: vi.fn(async () => sources) };
@@ -357,5 +357,25 @@ describe('startChatStream', () => {
     expect(await collect(start.events)).toContain(toSse({ type: 'token', text: 'العفو!' }));
     expect(isAnswerable).not.toHaveBeenCalled();
     expect(gaps.recordNoAnswer).not.toHaveBeenCalled();
+  });
+
+  it('trusts a very close knowledge match over an off-topic verdict', async () => {
+    const gaps = fakeGaps();
+    const isAnswerable = vi.fn(async () => true);
+    const staffAnswer: KnowledgeSource = { file: 'staff-answers.md', title: 'عندكم واتساب؟', content: 'أيوه: 0100 000 0000', score: 0.84 };
+    const start = await run(fakeProvider(['أيوه']), fakeKnowledge([staffAnswer]), async () => false, [{ role: 'user', content: 'عندكم واتساب؟' }], new AbortController().signal, gaps, isAnswerable);
+    if (!start.ok) throw new Error('expected ok');
+    expect(await collect(start.events)).toContain(toSse({ type: 'token', text: 'أيوه' }));
+    expect(isAnswerable).toHaveBeenCalled();
+    expect(gaps.recordOffTopic).not.toHaveBeenCalled();
+  });
+
+  it('keeps refusing off-topic messages whose best match is only loosely related', async () => {
+    const gaps = fakeGaps();
+    const loose: KnowledgeSource = { ...hoursSource, score: 0.69 };
+    const start = await run(fakeProvider(['Paris']), fakeKnowledge([loose]), async () => false, [{ role: 'user', content: 'Capital of France?' }], new AbortController().signal, gaps);
+    if (!start.ok) throw new Error('expected ok');
+    expect(await collect(start.events)).toContain(toSse({ type: 'token', text: REFUSAL_EN }));
+    expect(gaps.recordOffTopic).toHaveBeenCalled();
   });
 });

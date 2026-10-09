@@ -1,5 +1,6 @@
 import { DatePipe } from '@angular/common';
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { HttpErrorResponse } from '@angular/common/http';
+import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { GapGroup, GapReason, GapsApi } from '../gaps/gaps-api';
@@ -24,12 +25,28 @@ export class GapsPage implements OnInit {
   protected readonly failed = signal(false);
   private loadRequest?: Subscription;
 
+  /** The key of the question whose answer form is open. */
+  protected readonly answering = signal<string | null>(null);
+  protected readonly draftTitle = signal('');
+  protected readonly draftAnswer = signal('');
+  protected readonly saving = signal(false);
+  protected readonly notice = signal<string | null>(null);
+  protected readonly answerError = signal<string | null>(null);
+  protected readonly canSave = computed(
+    () =>
+      !this.saving() &&
+      this.draftTitle().trim().length >= 3 &&
+      this.draftAnswer().trim().length >= 5 &&
+      this.draftAnswer().trim().length <= 2000,
+  );
+
   ngOnInit(): void {
     this.load();
   }
 
   protected select(reason: GapReason): void {
     this.reason.set(reason);
+    this.answering.set(null);
     this.load();
   }
 
@@ -60,6 +77,42 @@ export class GapsPage implements OnInit {
         else this.load();
       },
       error: () => this.failed.set(true),
+    });
+  }
+
+  protected openAnswer(group: GapGroup): void {
+    this.answering.set(group.key);
+    // The customer's own wording makes the best title: it is what the next customer will type.
+    this.draftTitle.set(group.question);
+    this.draftAnswer.set('');
+    this.answerError.set(null);
+    this.notice.set(null);
+  }
+
+  protected inputValue(event: Event): string {
+    return (event.target as HTMLInputElement | HTMLTextAreaElement).value;
+  }
+
+  protected saveAnswer(group: GapGroup, event: Event): void {
+    event.preventDefault();
+    if (!this.canSave()) return;
+    this.saving.set(true);
+    this.answerError.set(null);
+    this.api.answer(this.reason(), group.key, this.draftTitle().trim(), this.draftAnswer().trim()).subscribe({
+      next: () => {
+        this.saving.set(false);
+        this.answering.set(null);
+        this.groups.update((groups) => groups.filter((g) => g.key !== group.key));
+        this.notice.set('اتضافت الإجابة للمعرفة، والشات هيستخدمها من دلوقتي.');
+      },
+      error: (error: unknown) => {
+        this.saving.set(false);
+        this.answerError.set(
+          error instanceof HttpErrorResponse && error.status === 503
+            ? 'الإجابة اتحفظت في ملف المعرفة، بس الفهرس متحدّثش (Ollama شغال؟). اعمل restart للسيرفر.'
+            : 'حصل خطأ، راجع العنوان والإجابة وحاول تاني.',
+        );
+      },
     });
   }
 }

@@ -18,6 +18,10 @@
     }
   </div>
 
+  @if (notice(); as message) {
+    <p class="notice" role="status">{{ message }}</p>
+  }
+
   @if (failed()) {
     <p class="notice notice--error" role="alert">حصل خطأ، حاول تاني.</p>
   } @else if (!loading() && groups().length === 0) {
@@ -30,22 +34,49 @@
         <div class="gap__top">
           <span class="gap__count">×{{ group.count }}</span>
           <strong class="gap__question" dir="auto">{{ group.question }}</strong>
-          <button class="btn btn--secondary" type="button" (click)="resolve(group)">تم</button>
+          <button class="btn gap__answer-toggle" type="button" (click)="openAnswer(group)">اكتب الإجابة</button>
+          <button class="btn btn--secondary gap__resolve" type="button" (click)="resolve(group)">تم</button>
         </div>
         <time class="gap__date">آخر مرة: {{ group.lastAskedAt | date: 'short' }}</time>
         <details>
           <summary>رد الشات</summary>
           <p dir="auto">{{ group.lastReply }}</p>
         </details>
+        @if (answering() === group.key) {
+          <form class="answer-form form" (submit)="saveAnswer(group, $event)">
+            <label class="field">
+              العنوان (سؤال العميل)
+              <input dir="auto" maxlength="150" [value]="draftTitle()" (input)="draftTitle.set(inputValue($event))" />
+            </label>
+            <label class="field">
+              الإجابة
+              <textarea
+                dir="auto"
+                rows="4"
+                maxlength="2000"
+                placeholder="اكتب الإجابة بالعربي، ولو تقدر سطر بالإنجليزي كمان."
+                [value]="draftAnswer()"
+                (input)="draftAnswer.set(inputValue($event))"
+              ></textarea>
+            </label>
+            @if (answerError(); as message) {
+              <p class="notice notice--error" role="alert">{{ message }}</p>
+            }
+            <div class="actions">
+              <button class="btn" type="submit" [disabled]="!canSave()">حفظ في المعرفة</button>
+              <button class="btn btn--secondary" type="button" (click)="answering.set(null)">إلغاء</button>
+            </div>
+          </form>
+        }
       </li>
     }
   </ul>
 
   <p class="hint">
     @if (reason() === 'no_answer') {
-      أضف الإجابة في ملفات <code>knowledge/</code> واعمل restart للسيرفر، وبعدين دوس "تم".
+      "اكتب الإجابة" بتضيفها لملف <code>knowledge/staff-answers.md</code> والشات بيستخدمها على طول. ولو السؤال مش محتاج إجابة، دوس "تم".
     } @else {
-      لو سؤال من دول كان عن الجمعية فعلًا، خطوة الفحص رفضته بالغلط: أضف مثال زيه في prompt الفحص أو اكتب الإجابة في <code>knowledge/</code>.
+      لو سؤال من دول كان عن الجمعية فعلًا، خطوة الفحص رفضته بالغلط: "اكتب الإجابة" بتصلّحه، لأن الشات بيثق في إجابة قريبة جدًا من السؤال.
     }
   </p>
 </main>

@@ -53,6 +53,10 @@ export function toSse(event: ChatStreamEvent): string {
   return `data: ${JSON.stringify(event)}\n\n`;
 }
 
+// Measured: off-topic questions scored at most 0.69 against the knowledge, while rewordings
+// of a staff answer scored 0.79–0.91.
+export const CLOSE_MATCH_SCORE = 0.8;
+
 // A follow-up like "وبالفيزا؟" means little on its own, so it is searched together with the question before it.
 const SHORT_QUESTION = 20;
 
@@ -96,6 +100,11 @@ export async function startChatStream(
   } catch (error) {
     return { ok: false, error };
   }
+
+  // A knowledge section almost identical to the question (e.g. a staff answer titled with a
+  // customer's own words) outweighs the topic gate: otherwise a wrong "off-topic" could never
+  // be fixed by adding knowledge. The answerability check still decides afterwards.
+  if (!onTopic && (sources[0]?.score ?? 0) >= CLOSE_MATCH_SCORE) onTopic = true;
 
   // Off-topic: the code answers with the fixed sentence; the model is not asked at all.
   if (!onTopic) {
