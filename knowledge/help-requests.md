@@ -1,5 +1,13 @@
 # طلب مساعدة / Requesting help
 
+## الجمعية بتقدّم إيه؟ / What does the foundation offer?
+- الجمعية بتقدّم للأسر المحتاجة: كرتونة أكل شهرية، ومساعدة في فواتير العلاج، وأدوات مدرسية.
+- وبتستقبل التبرعات (فلوس أو أي حاجات) وبتنظّم المتطوعين.
+- علشان تطلب مساعدة: هات الأوراق المطلوبة للمقر، أو كلّمنا على 0100 000 0000.
+- The foundation offers families in need: monthly food boxes, help with medical bills, and school supplies.
+- It also receives donations (money or any items) and organizes volunteers.
+- To ask for help: bring the required documents to the office, or call 0100 000 0000.
+
 ## مين يقدر يطلب مساعدة / Who can ask for help
 - لو فقدت شغلك، أو معندكش دخل، أو الفلوس مش مكفية الأكل للعيال: تقدر تطلب كرتونة أكل شهرية.
 - لو حد في البيت عيان ومعندكوش فلوس للعلاج أو العملية: تقدر تطلب مساعدة في فواتير العلاج.

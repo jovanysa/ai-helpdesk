@@ -2,10 +2,12 @@
 
 ## العنوان والتواصل / Address and contact
 - الاسم: جمعية الخير
+- المقر فين؟ المقر في 12 شارع النصر، مدينة نصر، القاهرة.
 - العنوان: 12 شارع النصر، مدينة نصر، القاهرة
 - التليفون: 0100 000 0000
 - الإيميل: info@alkhair.example
 - Name: Al-Khair Foundation
+- Where is the office? 12 El-Nasr St, Nasr City, Cairo.
 - Address: 12 El-Nasr St, Nasr City, Cairo
 - Phone: 0100 000 0000
 - Email: info@alkhair.example
