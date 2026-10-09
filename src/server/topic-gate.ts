@@ -21,6 +21,9 @@ CURRENT: "جوزي تعبان ومش لاقيين نجيب العلاج" -> {"un
 CURRENT: "ازاي اتبرع؟" -> {"unrelated": false}
 CURRENT: "Which papers should I bring?" -> {"unrelated": false}
 CURRENT: "Where are you located?" -> {"unrelated": false}
+CURRENT: "عندي غسالة قديمة ممكن اديهالكم؟" -> {"unrelated": false}
+CURRENT: "I want to give you some old clothes" -> {"unrelated": false}
+CURRENT: "Do you take used toys?" -> {"unrelated": false}
 CURRENT: "مين كسب الماتش امبارح؟" -> {"unrelated": true}
 CURRENT: "What is the capital of Italy?" -> {"unrelated": true}
 CURRENT: "اعمل مكرونة بشاميل ازاي" -> {"unrelated": true}`;

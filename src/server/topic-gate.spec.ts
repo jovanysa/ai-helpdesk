@@ -50,4 +50,9 @@ describe('createOllamaTopicGate', () => {
       expect(TOPIC_GATE_PROMPT).toContain(text);
     }
   });
+
+  it('shows offers to donate items as related, in both phrasings', () => {
+    expect(TOPIC_GATE_PROMPT).toContain('CURRENT: "I want to give you some old clothes" -> {"unrelated": false}');
+    expect(TOPIC_GATE_PROMPT).toContain('CURRENT: "Do you take used toys?" -> {"unrelated": false}');
+  });
 });
