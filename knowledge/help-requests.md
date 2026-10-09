@@ -43,7 +43,10 @@
 - Help with medical bills.
 
 ## اللي الجمعية مبتقدّموش / What the foundation does not cover
-- الإيجار: لأ، الجمعية مبتدفعش إيجار.
-- الديون والقروض: لأ، الجمعية مبتسدّدش ديون.
-- Rent: no, the foundation does not pay rent.
-- Debts and loans: no, the foundation does not pay debts.
+- بتدفعوا الإيجار؟ لأ، الجمعية مبتدفعش إيجار.
+- ممكن تساعدوني في الإيجار أو الإيجار المتأخر؟ لأ، الجمعية مبتساعدش في الإيجار.
+- بتسددوا ديون؟ لأ، الجمعية مبتسدّدش ديون.
+- بتدوا قروض أو سلف؟ لأ، الجمعية مبتديش قروض ولا سلف.
+- Do you pay rent? No, the foundation does not pay rent.
+- Do you pay debts? No, the foundation does not pay debts.
+- Do you give loans? No, the foundation does not give loans.

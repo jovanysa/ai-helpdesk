@@ -15,3 +15,5 @@
 ## سن التطوع / Volunteer age
 - لازم يكون سن المتطوع 16 سنة على الأقل.
 - Volunteers must be at least 16 years old.
+- لو السن أقل من 16 سنة: مينفعش تتطوع لسه.
+- If you are under 16: you cannot volunteer yet.
