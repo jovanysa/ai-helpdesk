@@ -1,0 +1,51 @@
+<main class="page">
+  <a routerLink="/staff">كل التذاكر</a>
+  <header class="gaps-header">
+    <h1>أسئلة مالهاش إجابة</h1>
+    <button class="btn btn--secondary" type="button" (click)="load()" [disabled]="loading()">تحديث</button>
+  </header>
+
+  <div class="tabs" role="tablist">
+    @for (tab of tabs; track tab.reason) {
+      <button
+        type="button"
+        role="tab"
+        class="tab"
+        [class.tab--active]="reason() === tab.reason"
+        [attr.aria-selected]="reason() === tab.reason"
+        (click)="select(tab.reason)"
+      >{{ tab.label }}</button>
+    }
+  </div>
+
+  @if (failed()) {
+    <p class="notice notice--error" role="alert">حصل خطأ، حاول تاني.</p>
+  } @else if (!loading() && groups().length === 0) {
+    <p class="notice">مفيش أسئلة مفتوحة 🎉</p>
+  }
+
+  <ul class="gaps">
+    @for (group of groups(); track group.key) {
+      <li class="gap">
+        <div class="gap__top">
+          <span class="gap__count">×{{ group.count }}</span>
+          <strong class="gap__question" dir="auto">{{ group.question }}</strong>
+          <button class="btn btn--secondary" type="button" (click)="resolve(group)">تم</button>
+        </div>
+        <time class="gap__date">آخر مرة: {{ group.lastAskedAt | date: 'short' }}</time>
+        <details>
+          <summary>رد الشات</summary>
+          <p dir="auto">{{ group.lastReply }}</p>
+        </details>
+      </li>
+    }
+  </ul>
+
+  <p class="hint">
+    @if (reason() === 'no_answer') {
+      أضف الإجابة في ملفات <code>knowledge/</code> واعمل restart للسيرفر، وبعدين دوس "تم".
+    } @else {
+      لو سؤال من دول كان عن الجمعية فعلًا، خطوة الفحص رفضته بالغلط: أضف مثال زيه في prompt الفحص أو اكتب الإجابة في <code>knowledge/</code>.
+    }
+  </p>
+</main>

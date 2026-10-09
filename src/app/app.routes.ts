@@ -14,6 +14,7 @@ export const routes: Routes = [
     children: [
       { path: '', loadComponent: () => import('./staff/ticket-list').then((m) => m.TicketList) },
       { path: 'tickets/:id', loadComponent: () => import('./staff/ticket-detail').then((m) => m.TicketDetail) },
+      { path: 'gaps', loadComponent: () => import('./staff/gaps-page').then((m) => m.GapsPage) },
     ],
   },
   { path: '**', redirectTo: '' },

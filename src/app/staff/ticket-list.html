@@ -3,6 +3,7 @@
     <h1>التذاكر</h1>
     <div class="actions">
       <span class="user">{{ auth.user()?.name }}</span>
+      <a class="btn btn--secondary" routerLink="/staff/gaps">أسئلة مالهاش إجابة</a>
       <button class="btn btn--secondary" type="button" (click)="load()" [disabled]="loading()">تحديث</button>
       <button class="btn btn--secondary" type="button" (click)="logout()">خروج</button>
     </div>
