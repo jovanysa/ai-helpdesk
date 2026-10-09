@@ -8,4 +8,6 @@ export interface ChatMessage {
   content: string;
   /** The knowledge chunks the server read for this reply (assistant messages only). */
   sources?: KnowledgeRef[];
+  /** The customer already gave 👍 or 👎 (kept here so it survives leaving the page). */
+  rated?: boolean;
 }

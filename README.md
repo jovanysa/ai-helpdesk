@@ -39,7 +39,7 @@ Everything runs **locally and for free**: Angular 22 + Express 5 + SQLite + [Oll
   - questions refused as off-topic;
   - replies customers rated 👎.
   - **"اكتب الإجابة"** (write the answer) adds the answer to the knowledge, and the chat uses it **immediately, without a restart**.
-  - The page also shows customer satisfaction for the last 30 days. The tickets page shows how many questions are waiting.
+  - The page also shows customer satisfaction for the last 30 days. The tickets page shows how many unanswered questions are waiting.
 
 ## How a chat message is answered
 
@@ -132,7 +132,7 @@ STAFF_EMAIL=… STAFF_PASSWORD=… npm run serve:ssr:ai-helpdesk   # http://loca
 ## Tests
 
 ```bash
-npx ng test --watch=false   # 322 tests (Vitest), no Ollama needed
+npx ng test --watch=false   # 330 tests (Vitest), no Ollama needed
 npm run build
 ```
 
@@ -163,5 +163,6 @@ docs/screenshots/    The images in this README
 ## Limits
 
 - **Learning project.** No HTTPS, no rate limiting, single server.
+- **Feedback is anonymous:** a 👍/👎 is not tied to a reply the server issued, and it is not rate-limited, so a script could skew the satisfaction figure.
 - **Model limits:** a 3B model still occasionally refuses an answerable question (logged for staff) or mixes a foreign word into Arabic.
 - **Fictional data:** the charity and every fact about it are invented.

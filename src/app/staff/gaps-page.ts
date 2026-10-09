@@ -44,7 +44,6 @@ export class GapsPage implements OnInit {
 
   ngOnInit(): void {
     this.load();
-    this.api.satisfaction().subscribe({ next: (value) => this.satisfaction.set(value), error: () => undefined });
   }
 
   protected select(reason: GapReason): void {
@@ -55,6 +54,7 @@ export class GapsPage implements OnInit {
   }
 
   protected load(): void {
+    this.api.satisfaction().subscribe({ next: (value) => this.satisfaction.set(value), error: () => undefined });
     // A slower answer for the previous tab must never land under the new one.
     this.loadRequest?.unsubscribe();
     this.groups.set([]);
@@ -94,7 +94,8 @@ export class GapsPage implements OnInit {
   }
 
   protected percent(value: { helpful: number; total: number }): number {
-    return Math.round((value.helpful / value.total) * 100);
+    // floor: 199 of 200 should read 99%, not a perfect 100%.
+    return Math.floor((value.helpful / value.total) * 100);
   }
 
   protected inputValue(event: Event): string {

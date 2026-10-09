@@ -15,7 +15,11 @@ describe('Chat', () => {
       error: signal(state.error ?? null),
       send: vi.fn(),
       stop: vi.fn(),
+      markRated: vi.fn(),
     };
+    fake.markRated.mockImplementation((index: number) =>
+      fake.messages.update((messages) => messages.map((m, i) => (i === index ? { ...m, rated: true } : m))),
+    );
     await TestBed.configureTestingModule({
       imports: [Chat],
       providers: [
@@ -217,6 +221,22 @@ describe('Chat', () => {
       await fixture.whenStable();
       expect(element.querySelector('.rating')?.textContent).toContain('شكرًا على رأيك');
       expect(element.querySelector('.rating button')).toBeNull();
+      expect(document.activeElement?.textContent).toContain('شكرًا على رأيك');
+    });
+
+    it('remembers a rating kept by the chat service, e.g. after visiting another page', async () => {
+      const { element } = await setup({ messages: [answered[0], { ...answered[1], rated: true }] });
+      expect(element.querySelector('.rating')?.textContent).toContain('شكرًا على رأيك');
+    });
+
+    it('does not offer a rating under a reply that ended with an error', async () => {
+      const { element } = await setup({ messages: answered, error: 'خدمة المساعد غير متاحة حاليًا، حاول تاني.' });
+      expect(element.querySelector('.rating')).toBeNull();
+    });
+
+    it('keeps the rating prompt out of the screen-reader announcements', async () => {
+      const { element } = await setup({ messages: answered });
+      expect(element.querySelector('.rating')?.getAttribute('aria-live')).toBe('off');
     });
 
     it('does not offer a rating while the reply is still being written', async () => {

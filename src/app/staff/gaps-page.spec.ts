@@ -193,4 +193,15 @@ describe('GapsPage', () => {
     await fixture.whenStable();
     expect(element.querySelector('.satisfaction')?.textContent).toContain('لسه مفيش تقييمات');
   });
+  it('refreshes satisfaction with the list and never rounds up to 100%', async () => {
+    const { fixture, http, element } = await setup();
+    http.expectOne((r) => r.url === '/api/gaps').flush([]);
+    http.expectOne('/api/feedback/summary').flush({ helpful: 1, total: 2 });
+    await fixture.whenStable();
+    [...element.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent?.includes('تحديث'))!.click();
+    http.expectOne((r) => r.url === '/api/gaps').flush([]);
+    http.expectOne('/api/feedback/summary').flush({ helpful: 199, total: 200 });
+    await fixture.whenStable();
+    expect(element.querySelector('.satisfaction')?.textContent).toContain('99%');
+  });
 });

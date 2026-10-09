@@ -1,4 +1,4 @@
-import { Component, ElementRef, afterRenderEffect, computed, inject, signal, viewChild } from '@angular/core';
+import { Component, ElementRef, Injector, afterNextRender, afterRenderEffect, computed, inject, signal, viewChild } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { ChatService, MAX_MESSAGE_LENGTH } from './chat.service';
 import { EscalationForm } from './escalation-form';
@@ -16,8 +16,7 @@ const NEAR_BOTTOM_PX = 120;
 export class Chat {
   protected readonly chat = inject(ChatService);
   private readonly feedback = inject(FeedbackApi);
-  /** Message indexes the customer already rated. */
-  protected readonly rated = signal<ReadonlySet<number>>(new Set());
+  private readonly injector = inject(Injector);
   protected readonly draft = signal('');
   protected readonly maxLength = MAX_MESSAGE_LENGTH;
   protected readonly suggestions = ['أتبرع إزاي؟', 'عايز أتطوع', 'محتاج مساعدة'];
@@ -49,15 +48,21 @@ export class Chat {
     });
   }
 
-  /** Answers written from the knowledge can be rated; refusals (no sources) are already logged. */
-  protected canRate(message: ChatMessage, index: number, last: boolean): boolean {
-    return message.role === 'assistant' && !!message.sources?.length && !!message.content.trim() && !(last && this.chat.isStreaming());
+  /**
+   * Answers written from the knowledge can be rated. Not refusals or small talk (no sources),
+   * not a reply still being written, and not one that ended in an error.
+   */
+  protected canRate(message: ChatMessage, last: boolean): boolean {
+    if (message.role !== 'assistant' || !message.sources?.length || !message.content.trim()) return false;
+    return !(last && (this.chat.isStreaming() || this.chat.error()));
   }
 
   protected rate(index: number, helpful: boolean): void {
     const messages = this.chat.messages();
     const question = messages.slice(0, index).reverse().find((m) => m.role === 'user')?.content ?? '';
-    this.rated.update((done) => new Set(done).add(index));
+    this.chat.markRated(index);
+    // The clicked button disappears; give keyboard and screen-reader users the thank-you instead.
+    afterNextRender(() => document.getElementById(`rating-thanks-${index}`)?.focus(), { injector: this.injector });
     // A lost rating is not worth bothering the customer about.
     this.feedback.give(question, messages[index].content, helpful).subscribe({ error: () => undefined });
   }

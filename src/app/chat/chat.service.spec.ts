@@ -176,4 +176,15 @@ describe('ChatService', () => {
     const body = JSON.parse(fetchMock.mock.calls[1][1].body);
     for (const message of body.messages) expect(Object.keys(message).sort()).toEqual(['content', 'role']);
   });
+
+  it('marks a reply as rated without sending the flag to the server', async () => {
+    fetchMock.mockImplementation(async () => sseResponse([token('ok') + done]));
+    await service.send('one');
+    service.markRated(1);
+    expect(service.messages()[1].rated).toBe(true);
+    await service.send('two');
+    const body = JSON.parse(fetchMock.mock.calls[1][1].body);
+    expect(body.messages[1]).toEqual({ role: 'assistant', content: 'ok' });
+  });
 });
+

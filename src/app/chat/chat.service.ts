@@ -43,6 +43,10 @@ export class ChatService {
     }
   }
 
+  markRated(index: number): void {
+    this._messages.update((messages) => messages.map((m, i) => (i === index ? { ...m, rated: true } : m)));
+  }
+
   stop(): void {
     this.controller?.abort();
   }
