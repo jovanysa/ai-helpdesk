@@ -15,8 +15,8 @@ describe('validateStaffAnswer', () => {
   });
 
   it('removes characters that would break the markdown structure', () => {
-    const result = validateStaffAnswer({ ...valid, title: '## فيه\nركنة؟', answer: 'سطر أول\n## مش عنوان\n#1 أولًا' });
-    expect(result).toMatchObject({ ok: true, value: { title: 'فيه ركنة؟', answer: 'سطر أول\n\\## مش عنوان\n\\#1 أولًا' } });
+    const result = validateStaffAnswer({ ...valid, title: '## فيه\nركنة؟', answer: 'سطر أول\n## مش عنوان\n#1 أولًا\n```' });
+    expect(result).toMatchObject({ ok: true, value: { title: 'فيه ركنة؟', answer: 'سطر أول\n\\## مش عنوان\n#1 أولًا\n\\```' } });
     if (!result.ok) throw new Error('expected ok');
     expect(parseKnowledgeFile('x.md', `## t\n${result.value.answer}`)).toHaveLength(1);
   });
@@ -47,4 +47,15 @@ describe('appendStaffAnswer', () => {
       { file: STAFF_ANSWERS_FILE, title: 'Do you have WhatsApp?', content: 'Yes: 0100 000 0000.' },
     ]);
   });
+
+  it('a stray code fence in one answer cannot swallow the answers after it', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'staff-answers-'));
+    const first = validateStaffAnswer({ reason: 'no_answer', key: 'k', title: 'سؤال 1', answer: 'إجابة\n```' });
+    if (!first.ok) throw new Error('expected ok');
+    appendStaffAnswer(dir, first.value.title, first.value.answer);
+    appendStaffAnswer(dir, 'سؤال 2', 'إجابة تانية');
+    const titles = parseKnowledgeFile(STAFF_ANSWERS_FILE, readFileSync(join(dir, STAFF_ANSWERS_FILE), 'utf8')).map((c) => c.title);
+    expect(titles).toEqual(['سؤال 1', 'سؤال 2']);
+  });
 });
+

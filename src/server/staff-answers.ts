@@ -19,14 +19,15 @@ export function validateStaffAnswer(body: unknown): Validation<StaffAnswer> {
   if (!isOneOf(GAP_REASONS, reason) || typeof key !== 'string' || !key.trim()) {
     return { ok: false, error: 'reason and key are required' };
   }
-  // A title is one line, and no answer line may start a "#" heading: either would split the
-  // section. A leading "#" in the answer is escaped (\#), so "#1 أولًا" keeps its text.
+  // A title is one line. In the answer, only what the knowledge parser would act on is
+  // escaped with a backslash: a "## " heading (it would split the section) and a ``` fence
+  // (an unclosed one would hide every later answer in the file). "#1 أولًا" is left alone.
   const cleanTitle = typeof title === 'string' ? title.replace(/[#\r\n]+/g, ' ').replace(/\s+/g, ' ').trim() : '';
   const cleanAnswer =
     typeof answer === 'string'
       ? answer
           .split(/\r?\n/)
-          .map((line) => line.replace(/^(\s*)#/, '$1\\#'))
+          .map((line) => line.replace(/^(##\s|\s*```)/, '\\$1'))
           .join('\n')
           .trim()
       : '';

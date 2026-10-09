@@ -38,6 +38,12 @@ export class FeedbackRepository {
     if (!helpful) this.questions.record(question, reply, 'disliked');
   }
 
+  /** Ratings are only used for the recent satisfaction figure; older ones are deleted. */
+  pruneOlderThan(days: number): number {
+    const before = new Date(this.now().getTime() - days * 24 * 60 * 60 * 1000).toISOString();
+    return Number(this.db.prepare('DELETE FROM reply_feedback WHERE created_at < ?').run(before).changes);
+  }
+
   /** Ratings in the last `days` days. */
   summary(days: number): { helpful: number; total: number } {
     const since = new Date(this.now().getTime() - days * 24 * 60 * 60 * 1000).toISOString();

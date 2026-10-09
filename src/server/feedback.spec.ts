@@ -44,4 +44,12 @@ describe('FeedbackRepository', () => {
     feedback.record({ question: 'q', reply: 'r', helpful: false });
     expect(feedback.summary(30)).toEqual({ helpful: 2, total: 3 });
   });
+
+  it('forgets ratings older than the given number of days', () => {
+    feedback.record({ question: 'q', reply: 'r', helpful: true });
+    clock = new Date(clock.getTime() + 91 * 24 * 60 * 60 * 1000);
+    feedback.record({ question: 'q', reply: 'r', helpful: true });
+    expect(feedback.pruneOlderThan(90)).toBe(1);
+    expect(feedback.summary(365)).toEqual({ helpful: 1, total: 1 });
+  });
 });

@@ -62,6 +62,7 @@ CREATE TABLE IF NOT EXISTS reply_feedback (
   helpful INTEGER NOT NULL CHECK (helpful IN (0, 1)),
   created_at TEXT NOT NULL
 );
+CREATE INDEX IF NOT EXISTS reply_feedback_created ON reply_feedback (created_at);
 `;
 
 /** Bump when an existing table must change shape; each step runs once per database file. */
@@ -74,13 +75,18 @@ function migrate(db: DatabaseSync): void {
     // in place, so a table made by an older version is rebuilt with its rows copied over.
     const table = db.prepare("SELECT sql FROM sqlite_master WHERE name = 'unanswered_questions'").get();
     if (!String(table?.['sql'] ?? '').includes('disliked')) {
-      db.exec(`BEGIN;
-        ALTER TABLE unanswered_questions RENAME TO unanswered_questions_v0;
-        DROP INDEX IF EXISTS unanswered_open;`);
-      db.exec(SCHEMA);
-      db.exec(`INSERT INTO unanswered_questions SELECT * FROM unanswered_questions_v0;
-        DROP TABLE unanswered_questions_v0;
-        COMMIT;`);
+      db.exec('BEGIN');
+      try {
+        db.exec(`ALTER TABLE unanswered_questions RENAME TO unanswered_questions_v0;
+          DROP INDEX IF EXISTS unanswered_open;`);
+        db.exec(SCHEMA);
+        db.exec(`INSERT INTO unanswered_questions SELECT * FROM unanswered_questions_v0;
+          DROP TABLE unanswered_questions_v0;`);
+        db.exec('COMMIT');
+      } catch (error) {
+        db.exec('ROLLBACK');
+        throw error;
+      }
     }
   }
   db.exec(`PRAGMA user_version = ${SCHEMA_VERSION};`);

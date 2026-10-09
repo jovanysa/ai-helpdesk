@@ -426,5 +426,10 @@ describe('startChatStream', () => {
     expect(start.ok).toBe(false);
     expect(error).not.toHaveBeenCalled();
   });
-});
 
+  it('sends no sources for small talk, so a greeting is not shown as read from the knowledge', async () => {
+    const start = await run(fakeProvider(['العفو!']), fakeKnowledge(), allowAll, [{ role: 'user', content: 'شكرا' }], new AbortController().signal);
+    if (!start.ok) throw new Error('expected ok');
+    expect((await collect(start.events))[0]).toBe(toSse({ type: 'sources', sources: [] }));
+  });
+});

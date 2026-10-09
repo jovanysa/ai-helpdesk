@@ -61,6 +61,7 @@ const knowledge = new KnowledgeBase(
 const gaps = new UnansweredRepository(db);
 const gapLog = new GapLog(gaps);
 const feedback = new FeedbackRepository(db, gaps);
+feedback.pruneOlderThan(90);
 gaps.pruneResolved(90);
 sessions.pruneExpired();
 

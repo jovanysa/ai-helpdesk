@@ -124,7 +124,8 @@ export async function startChatStream(
   // The model is asked to answer only when the sources hold the answer; otherwise the
   // code says "I don't know" and records the question for staff to fill in.
   // Greetings and thanks need no knowledge, whatever the previous question was.
-  if (!isSmallTalk(current)) {
+  const smallTalk = isSmallTalk(current);
+  if (!smallTalk) {
     const answerable = await checkAnswerable(isAnswerable, query, sources, signal);
     if (signal.aborted) return { ok: false, error: new Error('aborted') };
     if (answerable !== true) {
@@ -143,7 +144,9 @@ export async function startChatStream(
   } catch (error) {
     return { ok: false, error };
   }
-  const sourcesEvent = toSse({ type: 'sources', sources: sources.map(({ title, file }) => ({ title, file })) });
+  // Small talk is not "read from" anything, and is not something to rate.
+  const shown = smallTalk ? [] : sources.map(({ title, file }) => ({ title, file }));
+  const sourcesEvent = toSse({ type: 'sources', sources: shown });
   return { ok: true, events: sseEvents(sourcesEvent, first, iterator, signal) };
 }
 
