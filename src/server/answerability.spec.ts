@@ -1,6 +1,7 @@
-import { ANSWERABILITY_PROMPT, createOllamaAnswerabilityCheck } from './answerability';
+import { ANSWERABILITY_PROMPT, createOllamaAnswerabilityCheck, quoteAppearsIn } from './answerability';
 
-const reply = (answerable: boolean) => new Response(JSON.stringify({ message: { content: JSON.stringify({ answerable }) } }));
+const reply = (answerable: boolean, quote = 'الجمعة: مقفول.') =>
+  new Response(JSON.stringify({ message: { content: JSON.stringify({ quote, answerable }) } }));
 const sources = [{ title: 'المواعيد', content: 'الجمعة: مقفول.' }];
 
 describe('createOllamaAnswerabilityCheck', () => {
@@ -16,8 +17,8 @@ describe('createOllamaAnswerabilityCheck', () => {
     expect(body).toMatchObject({ model: 'm', stream: false, think: false, keep_alive: '30m', options: { temperature: 0 } });
     expect(body.format).toEqual({
       type: 'object',
-      properties: { answerable: { type: 'boolean' } },
-      required: ['answerable'],
+      properties: { quote: { type: 'string' }, answerable: { type: 'boolean' } },
+      required: ['quote', 'answerable'],
     });
     expect(body.messages[0].content).toContain('SOURCES:\n[1] المواعيد\nالجمعة: مقفول.');
     expect(body.messages[1]).toEqual({ role: 'user', content: 'QUESTION: "انتو فاتحين يوم الجمعة؟"' });
@@ -40,9 +41,24 @@ describe('createOllamaAnswerabilityCheck', () => {
     await expect(malformed('q', sources)).rejects.toThrow();
   });
 
-  it('tells the model that something similar is not enough', () => {
+  it('tells the model to quote the answering line first', () => {
+    expect(ANSWERABILITY_PROMPT).toContain('First copy into "quote" the one line from the SOURCES that answers the QUESTION');
     expect(ANSWERABILITY_PROMPT).toContain('A related or similar thing is not enough.');
     expect(ANSWERABILITY_PROMPT).toContain('{{SOURCES}}');
+  });
+
+  it('is not answerable when the quoted line is not really in the sources', async () => {
+    const check = createOllamaAnswerabilityCheck({
+      url: 'http://x',
+      model: 'm',
+      fetchFn: vi.fn(async () => reply(true, 'نعم، بنقدم دروس محو أمية للكبار')),
+    });
+    expect(await check('عندكم محو أمية؟', sources)).toBe(false);
+  });
+
+  it('is not answerable when the model says no, even with a real quote', async () => {
+    const check = createOllamaAnswerabilityCheck({ url: 'http://x', model: 'm', fetchFn: vi.fn(async () => reply(false)) });
+    expect(await check('q', sources)).toBe(false);
   });
 
   it('stops when the customer leaves', async () => {
@@ -54,5 +70,18 @@ describe('createOllamaAnswerabilityCheck', () => {
     const pending = createOllamaAnswerabilityCheck({ url: 'http://x', model: 'm', fetchFn: fetchFn as typeof fetch })('q', sources, controller.signal);
     controller.abort();
     await expect(pending).rejects.toThrow('aborted');
+  });
+});
+
+describe('quoteAppearsIn', () => {
+  const text = '[1] المواعيد\n- الجمعة: مقفول.\n- Friday: closed.';
+  it('finds a quote ignoring bullets, spacing and punctuation', () => {
+    expect(quoteAppearsIn('الجمعة مقفول', text)).toBe(true);
+    expect(quoteAppearsIn('- Friday:  closed', text)).toBe(true);
+  });
+  it('rejects invented or too short quotes', () => {
+    expect(quoteAppearsIn('الجمعة مفتوح', text)).toBe(false);
+    expect(quoteAppearsIn('', text)).toBe(false);
+    expect(quoteAppearsIn('Fri', text)).toBe(false);
   });
 });

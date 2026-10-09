@@ -16,24 +16,22 @@ export interface OllamaAnswerabilityConfig {
 }
 
 export const ANSWERABILITY_PROMPT = `You check whether a charity's knowledge SOURCES contain the answer to a customer's QUESTION.
-answerable = true when the SOURCES explicitly state the fact asked for, or when the answer follows directly from a stated fact (a minimum age, a day marked closed, a rule). A "no" written in the SOURCES counts. Questions about what help exists, and people describing a need that a listed service covers, are answerable when the SOURCES list that help. Greetings and thanks are always answerable.
-answerable = false when the specific thing asked about is not written in the SOURCES. A related or similar thing is not enough.
-
-Examples (with other example sources):
-SOURCES say "Sunday: closed." QUESTION "Are you open on Sunday?" -> {"answerable": true}
-SOURCES say "Members must be at least 18." QUESTION "Can my 15 year old join?" -> {"answerable": true}
-SOURCES say "We do not give scholarships." QUESTION "Do you give scholarships?" -> {"answerable": true}
-SOURCES say "We give winter blankets." QUESTION "Do you give school uniforms?" -> {"answerable": false}
-QUESTION "Hello!" -> {"answerable": true}
+First copy into "quote" the one line from the SOURCES that answers the QUESTION, word for word. A line that says "no" or "not available" also answers. If the answer follows directly from a line (a minimum age, a day marked closed), copy that line.
+If no line answers the specific thing asked about, set "quote" to "". A related or similar thing is not enough.
+Then set "answerable" to true only if "quote" is not empty.
 
 SOURCES:
 {{SOURCES}}`;
 
+// The quote comes first: copying the answering line before deciding made the 3B model
+// more consistent, and lets the code check the line is really there.
 const ANSWERABILITY_SCHEMA = {
   type: 'object',
-  properties: { answerable: { type: 'boolean' } },
-  required: ['answerable'],
+  properties: { quote: { type: 'string' }, answerable: { type: 'boolean' } },
+  required: ['quote', 'answerable'],
 };
+
+const MIN_QUOTE_LENGTH = 8;
 
 // It fails open, so waiting longer than this only delays the customer.
 const CHECK_TIMEOUT_MS = 10_000;
@@ -60,7 +58,7 @@ export function createOllamaAnswerabilityCheck({
         think: false,
         keep_alive: OLLAMA_KEEP_ALIVE,
         format: ANSWERABILITY_SCHEMA,
-        options: { temperature: 0 },
+        options: { temperature: 0, num_predict: 160 },
         messages: [
           { role: 'system', content: ANSWERABILITY_PROMPT.replace('{{SOURCES}}', listed) },
           { role: 'user', content: `QUESTION: "${question}"` },
@@ -70,8 +68,18 @@ export function createOllamaAnswerabilityCheck({
     });
     if (!response.ok) throw new Error(`Ollama returned HTTP ${response.status}`);
     const data = (await response.json()) as { message?: { content?: string } };
-    const answerable = (JSON.parse(data.message?.content ?? '') as Record<string, unknown>)['answerable'];
-    if (typeof answerable !== 'boolean') throw new Error(`Unexpected answerability check: ${data.message?.content}`);
-    return answerable;
+    const { quote, answerable } = JSON.parse(data.message?.content ?? '') as Record<string, unknown>;
+    if (typeof answerable !== 'boolean' || typeof quote !== 'string') {
+      throw new Error(`Unexpected answerability check: ${data.message?.content}`);
+    }
+    // Both must agree: the model says yes, and the line it quoted really is in the sources.
+    return answerable && quoteAppearsIn(quote, listed);
   };
+}
+
+/** True when the quote is in the text, ignoring bullets, spacing and punctuation. */
+export function quoteAppearsIn(quote: string, text: string): boolean {
+  const normalize = (value: string) => value.replace(/[\s\-–•*"“”'.,،؛;:؟?!()[\]]+/g, ' ').trim();
+  const needle = normalize(quote);
+  return needle.length >= MIN_QUOTE_LENGTH && normalize(text).includes(needle);
 }
