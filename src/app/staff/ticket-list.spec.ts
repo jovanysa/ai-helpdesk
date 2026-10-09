@@ -38,6 +38,11 @@ describe('TicketList', () => {
     return { fixture, http, element: fixture.nativeElement as HTMLElement };
   }
 
+  /** The open-questions count loads alongside the tickets. */
+  function flushGaps(http: HttpTestingController, groups: unknown[] = []) {
+    http.match((r) => r.url === '/api/gaps').forEach((req) => req.flush(groups));
+  }
+
   it('loads tickets and shows their Arabic labels', async () => {
     const { fixture, http, element } = await setup();
     http.expectOne('/api/tickets').flush([ticket]);
@@ -86,4 +91,23 @@ describe('TicketList', () => {
     await fixture.whenStable();
     expect(element.querySelectorAll('.ticket')).toHaveLength(1);
   });
+
+  it('shows how many questions are waiting for an answer', async () => {
+    const { fixture, http, element } = await setup();
+    http.expectOne('/api/tickets').flush([]);
+    flushGaps(http, [{ key: 'a' }, { key: 'b' }, { key: 'c' }]);
+    await fixture.whenStable();
+    expect(element.querySelector('a[href="/staff/gaps"]')?.textContent).toContain('(3)');
+  });
+
+  it('shows no count when there are no open questions or the count cannot load', async () => {
+    const { fixture, http, element } = await setup();
+    http.expectOne('/api/tickets').flush([]);
+    http.expectOne((r) => r.url === '/api/gaps').flush({}, { status: 500, statusText: 'Error' });
+    await fixture.whenStable();
+    const link = element.querySelector('a[href="/staff/gaps"]')!;
+    expect(link.textContent).not.toContain('(');
+    expect(element.querySelector('[role=alert]')).toBeNull();
+  });
 });
+

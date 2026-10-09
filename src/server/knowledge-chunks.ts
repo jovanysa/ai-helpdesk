@@ -7,7 +7,10 @@ export interface KnowledgeChunk {
   content: string;
 }
 
-/** Every `## Heading` starts a chunk; anything before the first one (e.g. `# File title`) is ignored. */
+/**
+ * Every `## Heading` starts a chunk; anything before the first one (e.g. `# File title`) is
+ * ignored, and so is a `## ` line inside a ``` code block.
+ */
 export function parseKnowledgeFile(file: string, markdown: string): KnowledgeChunk[] {
   const chunks: KnowledgeChunk[] = [];
   let current: { title: string; lines: string[] } | null = null;
@@ -15,8 +18,11 @@ export function parseKnowledgeFile(file: string, markdown: string): KnowledgeChu
     if (current) chunks.push({ file, title: current.title, content: current.lines.join('\n').trim() });
   };
 
+  let inFence = false;
   for (const line of markdown.split(/\r?\n/)) {
-    const heading = /^##\s+(.+?)\s*$/.exec(line);
+    // Inside a ``` code block, "## " is example text, not a new section.
+    if (/^\s*```/.test(line)) inFence = !inFence;
+    const heading = inFence ? null : /^##\s+(.+?)\s*$/.exec(line);
     if (heading) {
       flush();
       current = { title: heading[1], lines: [] };

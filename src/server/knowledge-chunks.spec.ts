@@ -37,4 +37,11 @@ describe('knowledge chunks', () => {
     }
     expect(chunks.map((c) => c.content).join('\n')).toContain('الجمعة: مقفول.');
   });
+
+  it('ignores ## lines inside a code block', () => {
+    const md = '## مثال\nاكتب كده:\n```\n## ده مش عنوان\n```\nخلاص';
+    expect(parseKnowledgeFile('x.md', md)).toEqual([
+      { file: 'x.md', title: 'مثال', content: 'اكتب كده:\n```\n## ده مش عنوان\n```\nخلاص' },
+    ]);
+  });
 });

@@ -14,6 +14,7 @@ import {
   TicketSummary,
 } from '../tickets/ticket.model';
 import { TicketsApi } from '../tickets/tickets-api';
+import { GapsApi } from '../gaps/gaps-api';
 
 @Component({
   selector: 'app-ticket-list',
@@ -23,12 +24,15 @@ import { TicketsApi } from '../tickets/tickets-api';
 })
 export class TicketList implements OnInit {
   private readonly api = inject(TicketsApi);
+  private readonly gapsApi = inject(GapsApi);
   private readonly router = inject(Router);
   protected readonly auth = inject(AuthService);
 
   protected readonly tickets = signal<TicketSummary[]>([]);
   protected readonly loading = signal(false);
   protected readonly failed = signal(false);
+  /** Open unanswered questions, shown next to the link; stays 0 if it cannot load. */
+  protected readonly openGaps = signal(0);
   private filters: TicketFilters = {};
   private loadRequest?: Subscription;
 
@@ -41,6 +45,8 @@ export class TicketList implements OnInit {
 
   ngOnInit(): void {
     this.load();
+    // A failed count is not worth an error on the tickets page: the link still works.
+    this.gapsApi.list('no_answer').subscribe({ next: (groups) => this.openGaps.set(groups.length), error: () => undefined });
   }
 
   protected load(): void {
