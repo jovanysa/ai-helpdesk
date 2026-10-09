@@ -21,16 +21,20 @@ describe('buildSystemPrompt', () => {
     expect(prompt).not.toContain('000123456789');
   });
 
-  it('tells the model one reply language and the matching refusal', () => {
-    const arabic = buildSystemPrompt(sources, 'ar');
-    expect(arabic).toContain('Reply in Arabic script only.');
-    expect(arabic).toContain(REFUSAL_AR);
-    expect(arabic).not.toContain(REFUSAL_EN);
+  it('tells the model one reply language', () => {
+    expect(buildSystemPrompt(sources, 'ar')).toContain('Reply in Arabic script only.');
+    expect(buildSystemPrompt(sources, 'en')).toContain('Reply in English only.');
+  });
 
-    const english = buildSystemPrompt(sources, 'en');
-    expect(english).toContain('Reply in English only.');
-    expect(english).toContain(REFUSAL_EN);
-    expect(english).not.toContain(REFUSAL_AR);
+  it('asks for "I do not know" plus the phone number instead of a canned sentence to copy', () => {
+    const prompt = buildSystemPrompt(sources, 'ar');
+    expect(prompt).toContain("say briefly that you don't have that information and give the phone number 0100 000 0000. Do not guess.");
+    expect(prompt).not.toContain(REFUSAL_AR);
+    expect(prompt).not.toContain(REFUSAL_EN);
+  });
+
+  it('tells the model to list the help when asked what the foundation offers', () => {
+    expect(buildSystemPrompt([], 'en')).toContain('When someone asks what the foundation offers, or describes a need');
   });
 
   it('puts the rules after the sources', () => {
@@ -53,7 +57,4 @@ describe('buildSystemPrompt', () => {
     expect(buildSystemPrompt([], 'ar')).toContain('If the message only greets or thanks you');
   });
 
-  it('tells the model to explain how to get help when someone describes a need', () => {
-    expect(buildSystemPrompt([], 'en')).toContain('describes a need the foundation helps with');
-  });
 });
