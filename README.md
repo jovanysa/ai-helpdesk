@@ -1,59 +1,149 @@
-# AiHelpdesk
+# Al-Khair Helpdesk — an AI support desk that runs on a laptop
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 22.2.1.
+> مساعد خدمة عملاء بالذكاء الاصطناعي لجمعية خيرية (وهمية): بيرد بالعربي والإنجليزي من ملفات الجمعية بس، وبيحوّل للموظفين، وبيتعلّم من الأسئلة اللي مكانش عارف يجاوبها. كله شغال على جهازك ببلاش من غير إنترنت.
 
-## Development server
+A customer-support chat for a fictional Cairo charity, **Al-Khair Foundation**:
 
-To start a local development server, run:
+- It answers in **Arabic (including Egyptian) and English**, **only** from the charity's own knowledge files.
+- It says "I don't know" instead of inventing.
+- It hands conversations to staff as tickets.
+- It shows staff which questions it could not answer, so they can teach it.
 
-```bash
-ng serve
+Everything runs **locally and for free**: Angular 22 + Express 5 + SQLite + [Ollama](https://ollama.com) with a 3-billion-parameter model on an 8 GB MacBook Air M1.
+
+<p align="center">
+  <img src="docs/screenshots/chat.png" alt="Chat answering a parent who cannot pay for surgery" width="720">
+</p>
+
+| Staff: tickets classified by AI (dark mode) | Staff: questions the chat could not answer |
+|---|---|
+| ![Ticket list](docs/screenshots/staff-tickets-dark.png) | ![Unanswered questions with the answer form open](docs/screenshots/staff-gaps.png) |
+
+<p align="center"><img src="docs/screenshots/chat-mobile.png" alt="Chat on a phone" width="260"></p>
+
+## What it does
+
+**For customers** (`/`, `/support/new`)
+- **Streaming chat:** replies appear word by word over Server-Sent Events. A Stop button cancels the model.
+- **Right language every time:** the reply language is chosen in code from the customer's message, not left to the model.
+- **Grounded answers:** answers come from `knowledge/*.md`. Under each reply a small line says which sections were read.
+- **Escalation:** "حوّل لموظف" (talk to a person) turns the conversation into a ticket with its transcript. A support form does the same without a chat.
+
+**For staff** (`/staff`, login required)
+- **Tickets:** classified by the model into category and priority. Staff can filter them and update status, category or priority.
+- **Unanswered questions:** questions the chat could not answer, grouped and sorted by how often they were asked.
+  - **"اكتب الإجابة"** (write the answer) adds the answer to the knowledge, and the chat uses it **immediately, without a restart**.
+
+## How a chat message is answered
+
+```mermaid
+flowchart LR
+    Q[Customer message] --> T{Small talk?<br/>code}
+    Q --> G[Topic gate<br/>JSON yes/no]
+    Q --> S[Search knowledge<br/>granite embeddings + cosine]
+    G -->|off-topic and no close match| R1[Fixed refusal<br/>+ logged as off-topic]
+    S --> A[Answerability check<br/>quote the answering line,<br/>code verifies it exists]
+    A -->|not answerable| R2[Fixed "I don't know" + phone<br/>+ logged for staff]
+    A -->|answerable| L[qwen2.5:3b writes the reply<br/>from the top 3 sections]
+    T -->|yes| L
+    L --> SSE[Streamed to the browser]
 ```
 
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
+**Lesson learned: keep hard decisions out of the free-text answer.** A 3B model asked to "answer only from the sources, otherwise refuse" made one of two mistakes. It either invented answers ("yes, we offer literacy classes") or refused questions it could answer. Each decision now has its own small step:
 
-## Code scaffolding
+| Decision | Who makes it |
+|---|---|
+| Reply language | Code (looks for Arabic letters) |
+| Greeting or thanks | Code (word list) |
+| Is this about the charity at all? | Model, JSON `{unrelated: boolean}`, ~0.4 s |
+| Do the sources answer it? | Model copies the answering line; **code checks the line is really in the sources** |
+| The reply itself | Model, only after the checks pass |
 
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
+## Results (measured on the 8 GB M1)
 
-```bash
-ng generate component component-name
-```
+On a fixed set of 26 real questions (16 answerable, 10 whose facts are not in the knowledge):
 
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
+| Version | Correct | Invented answers |
+|---|---|---|
+| Prompt rules only | 19–21 / 26 | 4 ("yes, literacy classes", "yes, home delivery"…) |
+| + answerability check | 22 / 26 | 1 |
+| **+ quote verification + FAQ-style knowledge** | **24 / 26** | **0** |
 
-```bash
-ng generate --help
-```
+Response time:
+- **First word:** about 3 s once warm.
+- **First message after the models were unloaded:** 7.7 s, down from 12.6 s (models are kept loaded and warmed at start).
 
-## Building
+**Things that did *not* work, and are documented in the specs:**
+- `qwen2.5:7b` crashed Ollama on 8 GB.
+- `qwen3:4b` took 38 s per message and leaked its reasoning into replies.
+- Embedding-based grouping of similar questions could not tell "university fees" from "school fees".
+- A shared prompt prefix for KV-cache reuse was faster, but less accurate.
 
-To build the project run:
+## Run it
 
-```bash
-ng build
-```
-
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
-
-## Running unit tests
-
-To execute unit tests with the [Vitest](https://vitest.dev/) test runner, use the following command:
-
-```bash
-ng test
-```
-
-## Running end-to-end tests
-
-For end-to-end (e2e) testing, run:
+**Requirements:** Node 24+, [Ollama](https://ollama.com).
 
 ```bash
-ng e2e
+# 1. Models (about 2.5 GB)
+ollama pull qwen2.5:3b
+ollama pull granite-embedding:278m
+ollama serve            # keep it running
+
+# 2. App
+npm install
+STAFF_EMAIL=admin@alkhair.example STAFF_PASSWORD='choose-a-password' STAFF_NAME='Admin' npm start
 ```
 
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
+Then:
+- **Chat:** http://localhost:4200
+- **Staff:** http://localhost:4200/staff/login
 
-## Additional Resources
+| Variable | Default | Purpose |
+|---|---|---|
+| `OLLAMA_URL` | `http://localhost:11434` | Ollama server |
+| `OLLAMA_MODEL` | `qwen2.5:3b` | Chat, checks and ticket classification |
+| `OLLAMA_EMBED_MODEL` | `granite-embedding:278m` | Embeddings for search |
+| `KNOWLEDGE_DIR` | `./knowledge` | Markdown knowledge files |
+| `DB_PATH` | `./data/helpdesk.db` | SQLite database (git-ignored) |
+| `STAFF_EMAIL` / `STAFF_PASSWORD` / `STAFF_NAME` | — | Creates the first staff account if it does not exist |
 
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+**Editing the knowledge:**
+- Every `## Heading` in `knowledge/*.md` is one searchable section.
+- Write facts the way customers ask them ("بتدفعوا الإيجار؟ لأ، …"). The small model matches and judges those far more reliably.
+- Restart to pick up manual edits. Answers saved from the staff page are applied at once.
+
+## Tests
+
+```bash
+npx ng test --watch=false   # 290 tests (Vitest), no Ollama needed
+npm run build
+```
+
+- **Server:** the server logic lives in plain functions, so the tests never need Express or a running model.
+- **Database:** tests use a real in-memory SQLite database.
+- **Angular:** components and services are tested with `HttpTestingController`.
+
+## Project layout
+
+```
+src/server/          Express API, chat pipeline, SQLite repositories (one file per job)
+src/app/chat/        Chat UI, SSE parsing, escalation form
+src/app/staff/       Staff login, tickets, unanswered questions
+knowledge/           What the assistant knows (Markdown)
+docs/superpowers/    Design specs and implementation plans for every phase
+docs/EXERCISES.md    Three practice tasks on this codebase
+```
+
+## Security notes
+
+- **Passwords:** hashed with scrypt.
+- **Logins:** an unknown email takes as long as a wrong password, so timing doesn't reveal which emails exist.
+- **Sessions:** random tokens stored only as SHA-256 hashes, in `HttpOnly; SameSite=Strict` cookies.
+- **Staff routes:** declared in one tested route table, so a route can't become public by accident.
+- **Stored questions:** capped at 500 characters. Handled questions are deleted after 90 days.
+
+## Limits
+
+- **Learning project.** No HTTPS, no rate limiting, single server.
+- **Model limits:** a 3B model still occasionally refuses an answerable question (logged for staff) or mixes a foreign word into Arabic.
+- **Fictional data:** the charity and every fact about it are invented.
