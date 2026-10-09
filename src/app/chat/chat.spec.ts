@@ -142,4 +142,15 @@ describe('Chat', () => {
     expect(element.querySelector('.chat__messages')?.getAttribute('aria-busy')).toBe('true');
     expect(element.querySelector('.cursor')?.getAttribute('aria-hidden')).toBe('true');
   });
+
+  it('shows only the first language of bilingual section titles', async () => {
+    const { element } = await setup({
+      messages: [
+        { role: 'user', content: 'ازاي اتبرع؟' },
+        { role: 'assistant', content: 'بفودافون كاش', sources: [{ title: 'طرق التبرع / How to donate', file: 'donations.md' }] },
+      ],
+    });
+    expect(element.querySelector('.message__sources')?.textContent?.trim()).toBe('اتقرا من: طرق التبرع');
+  });
 });
+

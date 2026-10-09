@@ -52,7 +52,8 @@ export class Chat {
   }
 
   protected sourceTitles(message: ChatMessage): string {
-    return (message.sources ?? []).map((source) => source.title).join('، ');
+    // Section titles are bilingual ("طرق التبرع / How to donate"); the first part is enough here.
+    return (message.sources ?? []).map((source) => source.title.split(' / ')[0]).join('، ');
   }
 
   protected onInput(event: Event): void {
