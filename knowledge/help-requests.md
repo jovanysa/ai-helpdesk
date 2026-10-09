@@ -4,12 +4,10 @@
 - لو فقدت شغلك، أو معندكش دخل، أو الفلوس مش مكفية الأكل للعيال: تقدر تطلب كرتونة أكل شهرية.
 - لو حد في البيت عيان ومعندكوش فلوس للعلاج أو العملية: تقدر تطلب مساعدة في فواتير العلاج.
 - لو مش قادر تجيب أدوات المدرسة لولادك: تقدر تطلب أدوات مدرسية.
-- مساعدة في الإيجار أو الديون: مش متاحة حاليًا.
 - علشان تطلب مساعدة: هات الأوراق المطلوبة للمقر، أو كلّمنا على 0100 000 0000.
 - If you lost your job, have no income, or cannot afford food for your children: you can ask for a monthly food box.
 - If someone at home is sick and you cannot pay for treatment or surgery: you can ask for help with medical bills.
 - If you cannot afford school supplies for your children: you can ask for school supplies.
-- Help with rent or debts: not available at the moment.
 - To ask for help: bring the required documents to the office, or call 0100 000 0000.
 
 ## الأوراق المطلوبة / Required documents
@@ -35,3 +33,9 @@
 - Monthly food boxes.
 - School supplies.
 - Help with medical bills.
+
+## اللي الجمعية مبتقدّموش / What the foundation does not cover
+- الإيجار: لأ، الجمعية مبتدفعش إيجار.
+- الديون والقروض: لأ، الجمعية مبتسدّدش ديون.
+- Rent: no, the foundation does not pay rent.
+- Debts and loans: no, the foundation does not pay debts.
