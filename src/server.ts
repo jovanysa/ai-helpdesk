@@ -17,6 +17,8 @@ import { SessionStore } from './server/sessions';
 import { StaffRepository } from './server/staff-repository';
 import { TicketClassifier, createOllamaClassifier } from './server/ticket-classifier';
 import { TicketRepository } from './server/ticket-repository';
+import { GapLog, createOllamaAnswerCheck } from './server/gap-recorder';
+import { UnansweredRepository } from './server/unanswered-questions';
 import { createOllamaTopicGate } from './server/topic-gate';
 
 const browserDistFolder = join(import.meta.dirname, '../browser');
@@ -45,6 +47,10 @@ const knowledge = new KnowledgeBase(
   embedModel,
 );
 
+// Questions the chat could not answer, for staff to fill in the knowledge.
+const gaps = new UnansweredRepository(db);
+const gapLog = new GapLog(gaps, createOllamaAnswerCheck(ollamaConfig));
+
 // The first staff account comes from the environment; an existing one is left unchanged.
 const staffEmail = process.env['STAFF_EMAIL'];
 const staffPassword = process.env['STAFF_PASSWORD'];
@@ -58,8 +64,13 @@ if (staffEmail && staffPassword) {
 app.use(
   '/api',
   express.json(),
-  createChatRouter(new OllamaProvider(ollamaConfig), knowledge, createOllamaTopicGate(ollamaConfig)),
-  createApiRouter({ staff, sessions, tickets, classifier }),
+  createChatRouter({
+    provider: new OllamaProvider(ollamaConfig),
+    knowledge,
+    isAboutFoundation: createOllamaTopicGate(ollamaConfig),
+    gaps: gapLog,
+  }),
+  createApiRouter({ staff, sessions, tickets, classifier, gaps }),
   apiErrorHandler,
 );
 

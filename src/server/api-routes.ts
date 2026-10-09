@@ -5,12 +5,15 @@ import { StaffRepository } from './staff-repository';
 import { TicketClassifier } from './ticket-classifier';
 import { createTicketHandlers } from './ticket-handlers';
 import { TicketRepository } from './ticket-repository';
+import { GAP_REASONS, UnansweredRepository } from './unanswered-questions';
+import { isOneOf } from './ticket-types';
 
 export interface ApiDeps {
   staff: StaffRepository;
   sessions: SessionStore;
   tickets: TicketRepository;
   classifier: TicketClassifier;
+  gaps: UnansweredRepository;
 }
 
 /** The parts of an HTTP request the handlers need, without Express types. */
@@ -30,7 +33,7 @@ export interface ApiRoute {
 }
 
 /** Every API route in one table, so which routes are public is visible (and tested) in one place. */
-export function createApiRoutes({ staff, sessions, tickets, classifier }: ApiDeps): ApiRoute[] {
+export function createApiRoutes({ staff, sessions, tickets, classifier, gaps }: ApiDeps): ApiRoute[] {
   const auth = createAuthHandlers(staff, sessions);
   const ticketHandlers = createTicketHandlers(tickets, classifier);
   const token = (req: ApiRequest) => readSessionToken(req.cookie);
@@ -54,6 +57,8 @@ export function createApiRoutes({ staff, sessions, tickets, classifier }: ApiDep
       staffOnly: true,
       handle: (req) => ticketHandlers.reclassify(req.params['id']),
     },
+    { method: 'get', path: '/gaps', staffOnly: true, handle: (req) => listGaps(gaps, req.query) },
+    { method: 'post', path: '/gaps/resolve', staffOnly: true, handle: (req) => resolveGap(gaps, req.body) },
   ];
 }
 
@@ -64,4 +69,18 @@ export function runRoute(route: ApiRoute, sessions: SessionStore, req: ApiReques
     if (!token || !sessions.findUser(token)) return { status: 401, body: { error: 'login required' } };
   }
   return route.handle(req);
+}
+
+function listGaps(gaps: UnansweredRepository, query: Record<string, unknown>): ApiResult {
+  const reason = query['reason'] ?? 'no_answer';
+  if (!isOneOf(GAP_REASONS, reason)) return { status: 400, body: { error: 'reason must be no_answer or off_topic' } };
+  return { status: 200, body: gaps.listOpen(reason) };
+}
+
+function resolveGap(gaps: UnansweredRepository, body: unknown): ApiResult {
+  const { reason, key } = (typeof body === 'object' && body !== null ? body : {}) as Record<string, unknown>;
+  if (!isOneOf(GAP_REASONS, reason) || typeof key !== 'string' || !key.trim()) {
+    return { status: 400, body: { error: 'reason and key are required' } };
+  }
+  return { status: 200, body: { resolved: gaps.resolve(reason, key) } };
 }

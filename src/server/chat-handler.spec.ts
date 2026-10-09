@@ -1,6 +1,8 @@
 import { AiMessage, AiProvider } from './ai-provider';
 import { REFUSAL_AR, REFUSAL_EN, buildSystemPrompt } from './charity-prompt';
 import { ChatTurn, buildSearchQuery, startChatStream, toSse, validateChatRequest } from './chat-handler';
+import { GapRecorder } from './gap-recorder';
+import { TopicGate } from './topic-gate';
 import { KnowledgeSearch, KnowledgeSource } from './knowledge-base';
 
 async function collect<T>(iterable: AsyncIterable<T>): Promise<T[]> {
@@ -62,6 +64,22 @@ describe('toSse', () => {
 
 const allowAll = async () => true;
 
+function fakeGaps() {
+  return { recordOffTopic: vi.fn(), reviewReply: vi.fn(async () => undefined) } satisfies GapRecorder;
+}
+
+/** Positional helper for the older tests; gap recording is a no-op spy. */
+function run(
+  provider: AiProvider,
+  knowledge: KnowledgeSearch,
+  isAboutFoundation: TopicGate,
+  turns: ChatTurn[],
+  signal: AbortSignal,
+  gaps: GapRecorder = fakeGaps(),
+) {
+  return startChatStream({ provider, knowledge, isAboutFoundation, gaps }, turns, signal);
+}
+
 const hoursSource: KnowledgeSource = { file: 'about.md', title: 'المواعيد', content: 'الجمعة: مقفول.', score: 0.9 };
 
 function fakeKnowledge(sources: KnowledgeSource[] = [hoursSource]): KnowledgeSearch & { search: ReturnType<typeof vi.fn> } {
@@ -94,13 +112,13 @@ describe('startChatStream', () => {
   it('searches the knowledge and puts the results into the system prompt', async () => {
     const seen: AiMessage[][] = [];
     const knowledge = fakeKnowledge();
-    await startChatStream(fakeProvider([], seen), knowledge, allowAll, [userTurn], new AbortController().signal);
+    await run(fakeProvider([], seen), knowledge, allowAll, [userTurn], new AbortController().signal);
     expect(knowledge.search).toHaveBeenCalledWith(userTurn.content);
     expect(seen[0]).toEqual([{ role: 'system', content: buildSystemPrompt([hoursSource], 'ar') }, userTurn]);
   });
 
   it('emits the sources first, then a token event per piece and done', async () => {
-    const start = await startChatStream(
+    const start = await run(
       fakeProvider(['أهلًا', ' بيك']),
       fakeKnowledge(),
       allowAll,
@@ -121,13 +139,13 @@ describe('startChatStream', () => {
     const seen: AiMessage[][] = [];
     const knowledge = fakeKnowledge();
     knowledge.search.mockRejectedValueOnce(new Error('Embedding model "m" is not downloaded.'));
-    const start = await startChatStream(fakeProvider(['x'], seen), knowledge, allowAll, [userTurn], new AbortController().signal);
+    const start = await run(fakeProvider(['x'], seen), knowledge, allowAll, [userTurn], new AbortController().signal);
     expect(start.ok).toBe(false);
     expect(seen).toEqual([]);
   });
 
   it('reports failure before streaming when the provider fails immediately', async () => {
-    const start = await startChatStream(
+    const start = await run(
       fakeProvider([new Error('Ollama is not reachable')]),
       fakeKnowledge(),
       allowAll,
@@ -138,7 +156,7 @@ describe('startChatStream', () => {
   });
 
   it('emits an error event when the provider fails mid-stream', async () => {
-    const start = await startChatStream(
+    const start = await run(
       fakeProvider(['part', new Error('boom')]),
       fakeKnowledge([]),
       allowAll,
@@ -162,7 +180,7 @@ describe('startChatStream', () => {
         throw new Error('aborted');
       },
     };
-    const start = await startChatStream(provider, fakeKnowledge([]), allowAll, [userTurn], controller.signal);
+    const start = await run(provider, fakeKnowledge([]), allowAll, [userTurn], controller.signal);
     if (!start.ok) throw new Error('expected ok');
 
     expect(await collect(start.events)).toEqual([
@@ -174,7 +192,7 @@ describe('startChatStream', () => {
   it('answers off-topic questions with the refusal sentence without asking the model', async () => {
     const seen: AiMessage[][] = [];
     const gate = vi.fn(async () => false);
-    const start = await startChatStream(fakeProvider(['Paris'], seen), fakeKnowledge(), gate, [userTurn], new AbortController().signal);
+    const start = await run(fakeProvider(['Paris'], seen), fakeKnowledge(), gate, [userTurn], new AbortController().signal);
     if (!start.ok) throw new Error('expected ok');
 
     expect(await collect(start.events)).toEqual([
@@ -187,7 +205,7 @@ describe('startChatStream', () => {
   });
 
   it('refuses in English for an English question', async () => {
-    const start = await startChatStream(
+    const start = await run(
       fakeProvider([]),
       fakeKnowledge(),
       async () => false,
@@ -200,7 +218,7 @@ describe('startChatStream', () => {
 
   it('checks the current message, with the previous question as context', async () => {
     const gate = vi.fn(async () => true);
-    await startChatStream(
+    await run(
       fakeProvider([]),
       fakeKnowledge(),
       gate,
@@ -216,7 +234,7 @@ describe('startChatStream', () => {
 
   it('still answers when the topic check itself fails', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    const start = await startChatStream(
+    const start = await run(
       fakeProvider(['أهلًا']),
       fakeKnowledge(),
       async () => {
@@ -228,5 +246,64 @@ describe('startChatStream', () => {
     if (!start.ok) throw new Error('expected ok');
     expect(await collect(start.events)).toContain(toSse({ type: 'token', text: 'أهلًا' }));
     expect(console.error).toHaveBeenCalledWith('[chat] topic check failed:', 'timeout');
+  });
+
+  it('records an off-topic refusal with the current question', async () => {
+    const gaps = fakeGaps();
+    const start = await run(
+      fakeProvider([]),
+      fakeKnowledge(),
+      async () => false,
+      [{ role: 'user', content: 'مين كسب الماتش؟' }],
+      new AbortController().signal,
+      gaps,
+    );
+    if (!start.ok) throw new Error('expected ok');
+    await collect(start.events);
+    expect(gaps.recordOffTopic).toHaveBeenCalledWith('مين كسب الماتش؟', REFUSAL_AR);
+    expect(gaps.reviewReply).not.toHaveBeenCalled();
+  });
+
+  it('reviews the full reply once the stream is done', async () => {
+    const gaps = fakeGaps();
+    const start = await run(fakeProvider(['معنديش ', 'المعلومة دي']), fakeKnowledge(), allowAll, [userTurn], new AbortController().signal, gaps);
+    if (!start.ok) throw new Error('expected ok');
+    await collect(start.events);
+    expect(gaps.reviewReply).toHaveBeenCalledTimes(1);
+    expect(gaps.reviewReply).toHaveBeenCalledWith(userTurn.content, 'معنديش المعلومة دي');
+    expect(gaps.recordOffTopic).not.toHaveBeenCalled();
+  });
+
+  it('does not review a reply that failed mid-stream', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const gaps = fakeGaps();
+    const start = await run(fakeProvider(['part', new Error('boom')]), fakeKnowledge(), allowAll, [userTurn], new AbortController().signal, gaps);
+    if (!start.ok) throw new Error('expected ok');
+    await collect(start.events);
+    expect(gaps.reviewReply).not.toHaveBeenCalled();
+  });
+
+  it('does not review a reply the customer stopped', async () => {
+    const controller = new AbortController();
+    const gaps = fakeGaps();
+    const provider: AiProvider = {
+      async *streamChat() {
+        yield 'part';
+        controller.abort();
+        throw new Error('aborted');
+      },
+    };
+    const start = await run(provider, fakeKnowledge(), allowAll, [userTurn], controller.signal, gaps);
+    if (!start.ok) throw new Error('expected ok');
+    await collect(start.events);
+    expect(gaps.reviewReply).not.toHaveBeenCalled();
+  });
+
+  it('does not review a blank reply', async () => {
+    const gaps = fakeGaps();
+    const start = await run(fakeProvider(['  ']), fakeKnowledge(), allowAll, [userTurn], new AbortController().signal, gaps);
+    if (!start.ok) throw new Error('expected ok');
+    await collect(start.events);
+    expect(gaps.reviewReply).not.toHaveBeenCalled();
   });
 });

@@ -1,10 +1,7 @@
 import { Router } from 'express';
-import { AiProvider } from './ai-provider';
-import { startChatStream, validateChatRequest } from './chat-handler';
-import { KnowledgeSearch } from './knowledge-base';
-import { TopicGate } from './topic-gate';
+import { ChatDeps, startChatStream, validateChatRequest } from './chat-handler';
 
-export function createChatRouter(provider: AiProvider, knowledge: KnowledgeSearch, isAboutFoundation: TopicGate): Router {
+export function createChatRouter(deps: ChatDeps): Router {
   const router = Router();
 
   router.post('/chat', async (req, res) => {
@@ -18,7 +15,7 @@ export function createChatRouter(provider: AiProvider, knowledge: KnowledgeSearc
     const controller = new AbortController();
     res.on('close', () => controller.abort());
 
-    const start = await startChatStream(provider, knowledge, isAboutFoundation, parsed.messages, controller.signal);
+    const start = await startChatStream(deps, parsed.messages, controller.signal);
     if (!start.ok) {
       if (controller.signal.aborted) return;
       console.error(

@@ -5,6 +5,7 @@ import { SessionStore } from './sessions';
 import { StaffRepository } from './staff-repository';
 import { TicketClassifier } from './ticket-classifier';
 import { TicketRepository } from './ticket-repository';
+import { UnansweredRepository } from './unanswered-questions';
 
 describe('API routes', () => {
   function setup() {
@@ -15,7 +16,8 @@ describe('API routes', () => {
     const classifier = new TicketClassifier(tickets, async () => ({ category: 'other', priority: 'low' }));
     const user = staff.create('admin@x.example', 'Admin', 'pw123456');
     tickets.create({ name: 'منى', phone: '01001234567', description: 'عايزة أتطوع', transcript: null });
-    const routes = createApiRoutes({ staff, sessions, tickets, classifier });
+    const gaps = new UnansweredRepository(db);
+    const routes = createApiRoutes({ staff, sessions, tickets, classifier, gaps });
     const request = (cookie?: string, overrides: Partial<ApiRequest> = {}): ApiRequest => ({
       params: { id: '1' },
       query: {},
@@ -23,7 +25,7 @@ describe('API routes', () => {
       cookie,
       ...overrides,
     });
-    return { routes, sessions, tickets, user, request };
+    return { routes, sessions, tickets, gaps, user, request };
   }
 
   it('keeps only the customer and login endpoints public', () => {
@@ -50,5 +52,47 @@ describe('API routes', () => {
     const cookie = sessionCookie(sessions.create(user.id).token, 60).split(';')[0];
     const list = routes.find((r) => r.method === 'get' && r.path === '/tickets')!;
     expect(runRoute(list, sessions, request(cookie)).status).toBe(200);
+  });
+
+  describe('gaps', () => {
+    function staffRequest() {
+      const ctx = setup();
+      const cookie = sessionCookie(ctx.sessions.create(ctx.user.id).token, 60).split(';')[0];
+      const route = (method: string, path: string) => ctx.routes.find((r) => r.method === method && r.path === path)!;
+      return { ...ctx, cookie, route };
+    }
+
+    it('protects the gaps routes', () => {
+      const { routes } = setup();
+      expect(routes.filter((r) => r.path.startsWith('/gaps')).map((r) => [r.method, r.path, r.staffOnly])).toEqual([
+        ['get', '/gaps', true],
+        ['post', '/gaps/resolve', true],
+      ]);
+    });
+
+    it('lists open questions for a reason, no_answer by default', () => {
+      const { gaps, sessions, cookie, route, request } = staffRequest();
+      gaps.record('فيه ركنة؟', 'مش عارف', 'no_answer');
+      gaps.record('مين كسب الماتش؟', 'refusal', 'off_topic');
+
+      const byDefault = runRoute(route('get', '/gaps'), sessions, request(cookie, { query: {} }));
+      expect(byDefault).toMatchObject({ status: 200, body: [{ question: 'فيه ركنة؟', count: 1 }] });
+      const offTopic = runRoute(route('get', '/gaps'), sessions, request(cookie, { query: { reason: 'off_topic' } }));
+      expect(offTopic).toMatchObject({ status: 200, body: [{ question: 'مين كسب الماتش؟' }] });
+      expect(runRoute(route('get', '/gaps'), sessions, request(cookie, { query: { reason: 'nope' } })).status).toBe(400);
+    });
+
+    it('resolves a group and rejects a bad body', () => {
+      const { gaps, sessions, cookie, route, request } = staffRequest();
+      gaps.record('فيه ركنة؟', 'r', 'no_answer');
+      gaps.record('فيه ركنة', 'r', 'no_answer');
+      const resolve = (body: unknown) => runRoute(route('post', '/gaps/resolve'), sessions, request(cookie, { body }));
+
+      expect(resolve({ reason: 'no_answer', key: 'فيه ركنه' })).toEqual({ status: 200, body: { resolved: 2 } });
+      expect(gaps.listOpen('no_answer')).toEqual([]);
+      expect(resolve({ reason: 'bad', key: 'x' }).status).toBe(400);
+      expect(resolve({ reason: 'no_answer', key: '  ' }).status).toBe(400);
+      expect(resolve(undefined).status).toBe(400);
+    });
   });
 });

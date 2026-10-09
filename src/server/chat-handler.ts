@@ -1,5 +1,6 @@
 import { AiMessage, AiProvider } from './ai-provider';
 import { REFUSALS, buildSystemPrompt, detectLanguage } from './charity-prompt';
+import { GapRecorder } from './gap-recorder';
 import { KnowledgeSearch, KnowledgeSource } from './knowledge-base';
 import { TopicGate } from './topic-gate';
 
@@ -66,10 +67,15 @@ export function buildSearchQuery(turns: ChatTurn[]): string {
  * reply and waits for its first piece, so a failure can still be reported with a
  * normal HTTP status before any SSE bytes are sent.
  */
+export interface ChatDeps {
+  provider: AiProvider;
+  knowledge: KnowledgeSearch;
+  isAboutFoundation: TopicGate;
+  gaps: GapRecorder;
+}
+
 export async function startChatStream(
-  provider: AiProvider,
-  knowledge: KnowledgeSearch,
-  isAboutFoundation: TopicGate,
+  { provider, knowledge, isAboutFoundation, gaps }: ChatDeps,
   turns: ChatTurn[],
   signal: AbortSignal,
 ): Promise<ChatStreamStart> {
@@ -89,7 +95,10 @@ export async function startChatStream(
   }
 
   // Off-topic: the code answers with the fixed sentence; the model is not asked at all.
-  if (!onTopic) return { ok: true, events: refusalEvents(REFUSALS[language]) };
+  if (!onTopic) {
+    gaps.recordOffTopic(current, REFUSALS[language]);
+    return { ok: true, events: refusalEvents(REFUSALS[language]) };
+  }
 
   const messages: AiMessage[] = [{ role: 'system', content: buildSystemPrompt(sources, language) }, ...turns];
   const iterator = provider.streamChat(messages, signal)[Symbol.asyncIterator]();
@@ -101,7 +110,9 @@ export async function startChatStream(
     return { ok: false, error };
   }
   const sourcesEvent = toSse({ type: 'sources', sources: sources.map(({ title, file }) => ({ title, file })) });
-  return { ok: true, events: sseEvents(sourcesEvent, first, iterator, signal) };
+  // Once the reply is complete, check in the background whether it said "I don't know".
+  const onReply = (reply: string) => void gaps.reviewReply(current, reply);
+  return { ok: true, events: sseEvents(sourcesEvent, first, iterator, signal, onReply) };
 }
 
 /** If the check itself fails, answer anyway: the prompt's refusal rule is the fallback. */
@@ -125,10 +136,13 @@ async function* sseEvents(
   first: IteratorResult<string>,
   iterator: AsyncIterator<string>,
   signal: AbortSignal,
+  onReply: (reply: string) => void,
 ): AsyncGenerator<string> {
   yield sourcesEvent;
+  let reply = '';
   try {
     for (let result = first; !result.done; result = await iterator.next()) {
+      reply += result.value;
       yield toSse({ type: 'token', text: result.value });
     }
     yield toSse({ type: 'done' });
@@ -137,5 +151,8 @@ async function* sseEvents(
     if (signal.aborted) return;
     console.error('[chat] AI stream failed:', error);
     yield toSse({ type: 'error', message: 'The AI stream failed.' });
+    return;
   }
+  // Only complete replies are reviewed: not stopped, not failed, not blank.
+  if (!signal.aborted && reply.trim()) onReply(reply);
 }
