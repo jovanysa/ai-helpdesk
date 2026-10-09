@@ -125,7 +125,7 @@ STAFF_EMAIL=… STAFF_PASSWORD=… npm run serve:ssr:ai-helpdesk   # http://loca
 ## Tests
 
 ```bash
-npx ng test --watch=false   # 301 tests (Vitest), no Ollama needed
+npx ng test --watch=false   # 302 tests (Vitest), no Ollama needed
 npm run build
 ```
 
