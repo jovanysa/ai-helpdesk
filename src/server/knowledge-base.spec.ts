@@ -96,4 +96,24 @@ describe('KnowledgeBase', () => {
     expect(rows()).toHaveLength(2);
     expect(console.warn).toHaveBeenCalledWith('[knowledge] duplicate section "طرق التبرع" in copy.md; skipped');
   });
+
+  it('keeps the vectors in memory instead of reading the table on every search', async () => {
+    const kb = new KnowledgeBase(db, fakeEmbed().embed, () => [donate, volunteer], 'm');
+    await kb.search('تبرع');
+    const prepare = vi.spyOn(db, 'prepare');
+    expect((await kb.search('تبرع')).map((r) => r.title)[0]).toBe('طرق التبرع');
+    expect(prepare).not.toHaveBeenCalled();
+  });
+
+  it('warmUp builds the index and loads the embedding model without throwing', async () => {
+    const { embed, calls } = fakeEmbed();
+    await new KnowledgeBase(db, embed, () => [donate], 'm').warmUp();
+    expect(rows()).toEqual(['طرق التبرع']);
+    expect(calls).toHaveLength(2);
+
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const failing = new KnowledgeBase(openDatabase(':memory:'), vi.fn(async () => { throw new Error('down'); }), () => [donate], 'm');
+    await expect(failing.warmUp()).resolves.toBeUndefined();
+    expect(console.warn).toHaveBeenCalledWith('[knowledge] warm-up failed:', 'down');
+  });
 });

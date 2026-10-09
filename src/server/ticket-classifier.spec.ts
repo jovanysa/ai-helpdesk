@@ -41,7 +41,7 @@ describe('createOllamaClassifier', () => {
     const [url, init] = fetchFn.mock.calls[0];
     expect(url).toBe('http://ollama.test/api/chat');
     const body = JSON.parse(init!.body as string);
-    expect(body).toMatchObject({ model: 'm', stream: false, think: false, options: { temperature: 0 } });
+    expect(body).toMatchObject({ model: 'm', stream: false, think: false, keep_alive: '30m', options: { temperature: 0 } });
     expect(body.format.properties.category.enum).toEqual([...TICKET_CATEGORIES]);
     expect(body.messages[0]).toEqual({ role: 'system', content: CLASSIFIER_PROMPT });
     expect(body.messages[1].content).toContain('عايز أتبرع');

@@ -14,6 +14,12 @@ export interface AiProvider {
 export const DEFAULT_OLLAMA_URL = 'http://localhost:11434';
 export const DEFAULT_OLLAMA_MODEL = 'qwen2.5:3b';
 
+/**
+ * Ollama unloads an idle model after 5 minutes; reloading cost 2–8 s on the first
+ * message after a pause, so every request asks it to stay loaded for 30 minutes.
+ */
+export const OLLAMA_KEEP_ALIVE = '30m';
+
 export interface OllamaConfig {
   url: string;
   model: string;
@@ -46,6 +52,7 @@ export class OllamaProvider implements AiProvider {
           stream: true,
           // Thinking models (e.g. qwen3) would reason at length before answering; ignored by others.
           think: false,
+          keep_alive: OLLAMA_KEEP_ALIVE,
           // Low temperature: fewer surprises (switching language, inventing facts) from a small model.
           options: { num_predict: maxTokens, temperature: 0.2 },
         }),
@@ -97,5 +104,18 @@ export async function* readLines(body: ReadableStream<Uint8Array>): AsyncGenerat
     if (buffer.trim()) yield buffer;
   } finally {
     reader.releaseLock();
+  }
+}
+
+/** Loads the model at server start so the first customer does not wait for it. Never throws. */
+export async function warmUpOllama({ url, model, fetchFn = fetch }: Pick<OllamaConfig, 'url' | 'model' | 'fetchFn'>): Promise<void> {
+  try {
+    await fetchFn(`${url}/api/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model, keep_alive: OLLAMA_KEEP_ALIVE }),
+    });
+  } catch (error) {
+    console.warn(`[ollama] could not load ${model}:`, error instanceof Error ? error.message : error);
   }
 }

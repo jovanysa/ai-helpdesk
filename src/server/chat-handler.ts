@@ -92,7 +92,7 @@ export async function startChatStream(
   let onTopic: boolean;
   let sources: KnowledgeSource[];
   try {
-    [onTopic, sources] = await Promise.all([checkTopic(isAboutFoundation, current, previous), knowledge.search(query)]);
+    [onTopic, sources] = await Promise.all([checkTopic(isAboutFoundation, current, previous, signal), knowledge.search(query)]);
   } catch (error) {
     return { ok: false, error };
   }
@@ -106,7 +106,7 @@ export async function startChatStream(
   // The model is asked to answer only when the sources hold the answer; otherwise the
   // code says "I don't know" and records the question for staff to fill in.
   // Greetings and thanks need no knowledge, whatever the previous question was.
-  if (!isSmallTalk(current) && !(await checkAnswerable(isAnswerable, query, sources))) {
+  if (!isSmallTalk(current) && !(await checkAnswerable(isAnswerable, query, sources, signal))) {
     gaps.recordNoAnswer(current, REFUSALS[language]);
     return { ok: true, events: refusalEvents(REFUSALS[language]) };
   }
@@ -125,9 +125,14 @@ export async function startChatStream(
 }
 
 /** If the check itself fails, answer anyway: the prompt's refusal rule is the fallback. */
-async function checkTopic(isAboutFoundation: TopicGate, current: string, previous?: string): Promise<boolean> {
+async function checkTopic(
+  isAboutFoundation: TopicGate,
+  current: string,
+  previous: string | undefined,
+  signal: AbortSignal,
+): Promise<boolean> {
   try {
-    return await isAboutFoundation(current, previous);
+    return await isAboutFoundation(current, previous, signal);
   } catch (error) {
     console.error('[chat] topic check failed:', error instanceof Error ? error.message : error);
     return true;
@@ -139,9 +144,10 @@ async function checkAnswerable(
   isAnswerable: AnswerabilityCheck,
   query: string,
   sources: KnowledgeSource[],
+  signal: AbortSignal,
 ): Promise<boolean> {
   try {
-    return await isAnswerable(query, sources);
+    return await isAnswerable(query, sources, signal);
   } catch (error) {
     console.error('[chat] answerability check failed:', error instanceof Error ? error.message : error);
     return true;

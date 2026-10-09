@@ -21,8 +21,17 @@ interface ChunkRow {
   embedding: Uint8Array;
 }
 
+interface CachedChunk {
+  file: string;
+  title: string;
+  content: string;
+  vector: Float32Array;
+}
+
 export class KnowledgeBase {
   private indexing: Promise<void> | null = null;
+  /** Decoded vectors, filled after indexing so a search does not re-read and re-decode the table. */
+  private cache: CachedChunk[] | null = null;
 
   constructor(
     private readonly db: DatabaseSync,
@@ -34,21 +43,31 @@ export class KnowledgeBase {
   /** The k chunks whose meaning is closest to the query, best first. */
   async search(query: string, k = 3): Promise<KnowledgeSource[]> {
     await this.ensureIndexed();
-    const rows = this.db
-      .prepare('SELECT file, title, content, content_hash, embedding FROM knowledge_chunks')
-      .all() as unknown as ChunkRow[];
-    if (rows.length === 0) return [];
+    const chunks = this.loadCache();
+    if (chunks.length === 0) return [];
 
     const [queryVector] = await this.embed([query]);
-    return rows
-      .map((row) => ({
-        file: row.file,
-        title: row.title,
-        content: row.content,
-        score: cosine(queryVector, fromBlob(row.embedding)),
-      }))
+    return chunks
+      .map(({ file, title, content, vector }) => ({ file, title, content, score: cosine(queryVector, vector) }))
       .sort((a, b) => b.score - a.score)
       .slice(0, k);
+  }
+
+  /** Builds the index and loads the embedding model at startup, so the first customer does not wait. */
+  async warmUp(): Promise<void> {
+    try {
+      await this.ensureIndexed();
+      await this.embed(['warm up']);
+    } catch (error) {
+      console.warn('[knowledge] warm-up failed:', error instanceof Error ? error.message : error);
+    }
+  }
+
+  private loadCache(): CachedChunk[] {
+    this.cache ??= (
+      this.db.prepare('SELECT file, title, content, embedding FROM knowledge_chunks').all() as unknown as ChunkRow[]
+    ).map((row) => ({ file: row.file, title: row.title, content: row.content, vector: fromBlob(row.embedding) }));
+    return this.cache;
   }
 
   /** Embeds only new or changed chunks and deletes chunks that no longer exist in the files. */
@@ -78,6 +97,7 @@ export class KnowledgeBase {
       this.db.exec('ROLLBACK');
       throw error;
     }
+    this.cache = null;
     console.log(`[knowledge] indexed ${chunks.length} chunks (${fresh.length} new)`);
   }
 

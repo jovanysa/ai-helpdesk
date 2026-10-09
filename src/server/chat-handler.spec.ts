@@ -203,7 +203,7 @@ describe('startChatStream', () => {
       toSse({ type: 'done' }),
     ]);
     expect(seen).toEqual([]);
-    expect(gate).toHaveBeenCalledWith(userTurn.content, undefined);
+    expect(gate).toHaveBeenCalledWith(userTurn.content, undefined, expect.any(AbortSignal));
   });
 
   it('refuses in English for an English question', async () => {
@@ -231,7 +231,7 @@ describe('startChatStream', () => {
       ],
       new AbortController().signal,
     );
-    expect(gate).toHaveBeenCalledWith('وبالفيزا؟', 'ازاي اتبرع؟');
+    expect(gate).toHaveBeenCalledWith('وبالفيزا؟', 'ازاي اتبرع؟', expect.any(AbortSignal));
   });
 
   it('still answers when the topic check itself fails', async () => {
@@ -278,7 +278,7 @@ describe('startChatStream', () => {
       toSse({ type: 'done' }),
     ]);
     expect(seen).toEqual([]);
-    expect(isAnswerable).toHaveBeenCalledWith(userTurn.content, [hoursSource]);
+    expect(isAnswerable).toHaveBeenCalledWith(userTurn.content, [hoursSource], expect.any(AbortSignal));
     expect(gaps.recordNoAnswer).toHaveBeenCalledWith(userTurn.content, REFUSAL_AR);
   });
 
@@ -298,7 +298,7 @@ describe('startChatStream', () => {
       gaps,
       isAnswerable,
     );
-    expect(isAnswerable).toHaveBeenCalledWith('ازاي اتبرع؟\nوبالفيزا؟', [hoursSource]);
+    expect(isAnswerable).toHaveBeenCalledWith('ازاي اتبرع؟\nوبالفيزا؟', [hoursSource], expect.any(AbortSignal));
     expect(gaps.recordNoAnswer).toHaveBeenCalledWith('وبالفيزا؟', REFUSAL_AR);
   });
 

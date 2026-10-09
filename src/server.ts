@@ -6,7 +6,7 @@ import {
 } from '@angular/ssr/node';
 import express from 'express';
 import { join } from 'node:path';
-import { DEFAULT_OLLAMA_MODEL, DEFAULT_OLLAMA_URL, OllamaProvider } from './server/ai-provider';
+import { DEFAULT_OLLAMA_MODEL, DEFAULT_OLLAMA_URL, OllamaProvider, warmUpOllama } from './server/ai-provider';
 import { createChatRouter } from './server/chat-route';
 import { apiErrorHandler, createApiRouter } from './server/api-router';
 import { openDatabase } from './server/db';
@@ -105,6 +105,9 @@ app.use((req, res, next) => {
  * The server listens on the port defined by the `PORT` environment variable, or defaults to 4000.
  */
 if (isMainModule(import.meta.url) || process.env['pm_id']) {
+  // Load the models and build the knowledge index now, not on the first customer's message.
+  void warmUpOllama(ollamaConfig).then(() => knowledge.warmUp());
+
   const port = process.env['PORT'] || 4000;
   app.listen(port, (error) => {
     if (error) {

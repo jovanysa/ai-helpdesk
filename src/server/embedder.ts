@@ -1,3 +1,5 @@
+import { OLLAMA_KEEP_ALIVE } from './ai-provider';
+
 /** Turns texts into vectors that are close together when the texts mean similar things. */
 export type EmbedFn = (texts: string[]) => Promise<number[][]>;
 
@@ -18,7 +20,7 @@ export function createOllamaEmbedder({ url, model, fetchFn = fetch }: OllamaEmbe
       response = await fetchFn(`${url}/api/embed`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model, input: texts }),
+        body: JSON.stringify({ model, input: texts, keep_alive: OLLAMA_KEEP_ALIVE }),
       });
     } catch (error) {
       throw new Error(`Ollama is not reachable at ${url}. Start it with \`ollama serve\`.`, { cause: error });

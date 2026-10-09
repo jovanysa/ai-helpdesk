@@ -9,7 +9,7 @@ describe('createOllamaEmbedder', () => {
     expect(await embed(['a', 'b'])).toEqual([[1], [2]]);
     const [url, init] = fetchFn.mock.calls[0];
     expect(url).toBe('http://ollama.test/api/embed');
-    expect(JSON.parse(init!.body as string)).toEqual({ model: 'm', input: ['a', 'b'] });
+    expect(JSON.parse(init!.body as string)).toEqual({ model: 'm', input: ['a', 'b'], keep_alive: '30m' });
   });
 
   it('does not call Ollama for an empty list', async () => {

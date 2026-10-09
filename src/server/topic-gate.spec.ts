@@ -12,7 +12,7 @@ describe('createOllamaTopicGate', () => {
     const [url, init] = fetchFn.mock.calls[0];
     expect(url).toBe('http://ollama.test/api/chat');
     const body = JSON.parse(init!.body as string);
-    expect(body).toMatchObject({ model: 'm', stream: false, think: false, options: { temperature: 0 } });
+    expect(body).toMatchObject({ model: 'm', stream: false, think: false, keep_alive: '30m', options: { temperature: 0 } });
     expect(body.format).toEqual({
       type: 'object',
       properties: { unrelated: { type: 'boolean' } },
@@ -54,5 +54,16 @@ describe('createOllamaTopicGate', () => {
   it('shows offers to donate items as related, in both phrasings', () => {
     expect(TOPIC_GATE_PROMPT).toContain('CURRENT: "I want to give you some old clothes" -> {"unrelated": false}');
     expect(TOPIC_GATE_PROMPT).toContain('CURRENT: "Do you take used toys?" -> {"unrelated": false}');
+  });
+
+  it('stops when the customer leaves', async () => {
+    const fetchFn = vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) => {
+      await new Promise((_, reject) => init!.signal!.addEventListener('abort', () => reject(new Error('aborted'))));
+      return reply(false);
+    });
+    const controller = new AbortController();
+    const pending = createOllamaTopicGate({ url: 'http://x', model: 'm', fetchFn: fetchFn as typeof fetch })('hi', undefined, controller.signal);
+    controller.abort();
+    await expect(pending).rejects.toThrow('aborted');
   });
 });

@@ -1,5 +1,6 @@
+import { OLLAMA_KEEP_ALIVE } from './ai-provider';
 /** True when the current message is for the foundation; only clearly unrelated messages are false. */
-export type TopicGate = (current: string, previous?: string) => Promise<boolean>;
+export type TopicGate = (current: string, previous?: string, signal?: AbortSignal) => Promise<boolean>;
 
 export interface OllamaTopicGateConfig {
   url: string;
@@ -34,7 +35,8 @@ const GATE_SCHEMA = {
   required: ['unrelated'],
 };
 
-const GATE_TIMEOUT_MS = 30_000;
+// It fails open, so waiting longer than this only delays the customer.
+const GATE_TIMEOUT_MS = 10_000;
 
 /** The previous message is labelled as context so a topic switch is judged on the current message alone. */
 export function gateInput(current: string, previous?: string): string {
@@ -47,7 +49,7 @@ export function gateInput(current: string, previous?: string): string {
  * It is asked "clearly unrelated?" so that greetings and people in need get through.
  */
 export function createOllamaTopicGate({ url, model, fetchFn = fetch }: OllamaTopicGateConfig): TopicGate {
-  return async (current, previous) => {
+  return async (current, previous, signal) => {
     const response = await fetchFn(`${url}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -55,6 +57,7 @@ export function createOllamaTopicGate({ url, model, fetchFn = fetch }: OllamaTop
         model,
         stream: false,
         think: false,
+        keep_alive: OLLAMA_KEEP_ALIVE,
         format: GATE_SCHEMA,
         options: { temperature: 0 },
         messages: [
@@ -62,7 +65,7 @@ export function createOllamaTopicGate({ url, model, fetchFn = fetch }: OllamaTop
           { role: 'user', content: gateInput(current, previous) },
         ],
       }),
-      signal: AbortSignal.timeout(GATE_TIMEOUT_MS),
+      signal: withTimeout(signal, GATE_TIMEOUT_MS),
     });
     if (!response.ok) throw new Error(`Ollama returned HTTP ${response.status}`);
     const data = (await response.json()) as { message?: { content?: string } };
@@ -70,4 +73,10 @@ export function createOllamaTopicGate({ url, model, fetchFn = fetch }: OllamaTop
     if (typeof unrelated !== 'boolean') throw new Error(`Unexpected topic check answer: ${data.message?.content}`);
     return !unrelated;
   };
+}
+
+/** Stops on whichever comes first: the customer leaving or the timeout. */
+export function withTimeout(signal: AbortSignal | undefined, ms: number): AbortSignal {
+  const timeout = AbortSignal.timeout(ms);
+  return signal ? AbortSignal.any([signal, timeout]) : timeout;
 }

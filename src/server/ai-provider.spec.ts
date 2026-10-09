@@ -1,4 +1,4 @@
-import { AiMessage, OllamaProvider, readLines } from './ai-provider';
+import { AiMessage, OllamaProvider, readLines, warmUpOllama } from './ai-provider';
 
 function streamOf(chunks: (string | Uint8Array)[]): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder();
@@ -72,6 +72,7 @@ describe('OllamaProvider', () => {
       messages,
       stream: true,
       think: false,
+      keep_alive: '30m',
       options: { num_predict: 512, temperature: 0.2 },
     });
   });
@@ -100,5 +101,24 @@ describe('OllamaProvider', () => {
     await expect(
       collect(provider(fetchFn).streamChat(messages, new AbortController().signal)),
     ).rejects.toThrow(/out of memory/);
+  });
+});
+
+describe('warmUpOllama', () => {
+  it('asks Ollama to load the model and keep it loaded', async () => {
+    const fetchFn = vi.fn(async (_url: RequestInfo | URL, _init?: RequestInit) => new Response('{}'));
+    await warmUpOllama({ url: 'http://ollama.test', model: 'm', fetchFn: fetchFn as typeof fetch });
+    const [url, init] = fetchFn.mock.calls[0];
+    expect(url).toBe('http://ollama.test/api/generate');
+    expect(JSON.parse(init!.body as string)).toEqual({ model: 'm', keep_alive: '30m' });
+  });
+
+  it('only logs when Ollama is not running', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const fetchFn = vi.fn(async () => {
+      throw new TypeError('fetch failed');
+    });
+    await expect(warmUpOllama({ url: 'http://x', model: 'm', fetchFn })).resolves.toBeUndefined();
+    expect(console.warn).toHaveBeenCalledWith('[ollama] could not load m:', 'fetch failed');
   });
 });

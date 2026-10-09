@@ -1,9 +1,12 @@
+import { OLLAMA_KEEP_ALIVE } from './ai-provider';
 import { KnowledgeSource } from './knowledge-base';
+import { withTimeout } from './topic-gate';
 
 /** True when the retrieved sources state the fact asked for (a written "no" counts). */
 export type AnswerabilityCheck = (
   question: string,
   sources: Pick<KnowledgeSource, 'title' | 'content'>[],
+  signal?: AbortSignal,
 ) => Promise<boolean>;
 
 export interface OllamaAnswerabilityConfig {
@@ -32,7 +35,8 @@ const ANSWERABILITY_SCHEMA = {
   required: ['answerable'],
 };
 
-const CHECK_TIMEOUT_MS = 30_000;
+// It fails open, so waiting longer than this only delays the customer.
+const CHECK_TIMEOUT_MS = 10_000;
 
 /**
  * Decides before answering whether the sources hold the answer. The 3B model kept
@@ -44,7 +48,7 @@ export function createOllamaAnswerabilityCheck({
   model,
   fetchFn = fetch,
 }: OllamaAnswerabilityConfig): AnswerabilityCheck {
-  return async (question, sources) => {
+  return async (question, sources, signal) => {
     if (sources.length === 0) return false;
     const listed = sources.map((source, i) => `[${i + 1}] ${source.title}\n${source.content}`).join('\n\n');
     const response = await fetchFn(`${url}/api/chat`, {
@@ -54,6 +58,7 @@ export function createOllamaAnswerabilityCheck({
         model,
         stream: false,
         think: false,
+        keep_alive: OLLAMA_KEEP_ALIVE,
         format: ANSWERABILITY_SCHEMA,
         options: { temperature: 0 },
         messages: [
@@ -61,7 +66,7 @@ export function createOllamaAnswerabilityCheck({
           { role: 'user', content: `QUESTION: "${question}"` },
         ],
       }),
-      signal: AbortSignal.timeout(CHECK_TIMEOUT_MS),
+      signal: withTimeout(signal, CHECK_TIMEOUT_MS),
     });
     if (!response.ok) throw new Error(`Ollama returned HTTP ${response.status}`);
     const data = (await response.json()) as { message?: { content?: string } };

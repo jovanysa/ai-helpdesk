@@ -13,7 +13,7 @@ describe('createOllamaAnswerabilityCheck', () => {
     const [url, init] = fetchFn.mock.calls[0];
     expect(url).toBe('http://ollama.test/api/chat');
     const body = JSON.parse(init!.body as string);
-    expect(body).toMatchObject({ model: 'm', stream: false, think: false, options: { temperature: 0 } });
+    expect(body).toMatchObject({ model: 'm', stream: false, think: false, keep_alive: '30m', options: { temperature: 0 } });
     expect(body.format).toEqual({
       type: 'object',
       properties: { answerable: { type: 'boolean' } },
@@ -43,5 +43,16 @@ describe('createOllamaAnswerabilityCheck', () => {
   it('tells the model that something similar is not enough', () => {
     expect(ANSWERABILITY_PROMPT).toContain('A related or similar thing is not enough.');
     expect(ANSWERABILITY_PROMPT).toContain('{{SOURCES}}');
+  });
+
+  it('stops when the customer leaves', async () => {
+    const fetchFn = vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) => {
+      await new Promise((_, reject) => init!.signal!.addEventListener('abort', () => reject(new Error('aborted'))));
+      return reply(true);
+    });
+    const controller = new AbortController();
+    const pending = createOllamaAnswerabilityCheck({ url: 'http://x', model: 'm', fetchFn: fetchFn as typeof fetch })('q', sources, controller.signal);
+    controller.abort();
+    await expect(pending).rejects.toThrow('aborted');
   });
 });

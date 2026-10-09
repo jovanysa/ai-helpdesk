@@ -1,3 +1,4 @@
+import { OLLAMA_KEEP_ALIVE } from './ai-provider';
 import { TicketRepository } from './ticket-repository';
 import {
   Classification,
@@ -58,6 +59,7 @@ export function createOllamaClassifier({ url, model, fetchFn = fetch }: OllamaCl
         model,
         stream: false,
         think: false,
+        keep_alive: OLLAMA_KEEP_ALIVE,
         format: CLASSIFICATION_SCHEMA,
         options: { temperature: 0 },
         messages: [
