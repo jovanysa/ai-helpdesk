@@ -7,7 +7,7 @@
     <a routerLink="/support/new">قدّم طلب</a>
   </header>
 
-  <section class="chat__messages" #messageList aria-live="polite" [attr.aria-busy]="chat.isStreaming()">
+  <section class="chat__messages" #messageList aria-live="polite" [attr.aria-busy]="chat.isStreaming()" (scroll)="onListScroll()">
     @if (chat.messages().length === 0) {
       <div class="chat__empty">
         <p>أهلًا بيك! اسألني عن التبرع أو التطوع أو طلب المساعدة.</p>

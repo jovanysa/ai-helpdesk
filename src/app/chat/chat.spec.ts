@@ -152,5 +152,39 @@ describe('Chat', () => {
     });
     expect(element.querySelector('.message__sources')?.textContent?.trim()).toBe('اتقرا من: طرق التبرع');
   });
+
+  describe('auto-scroll', () => {
+    /** jsdom has no layout, so give the message list fake sizes. */
+    function fakeLayout(list: HTMLElement) {
+      const box = { scrollHeight: 1000, clientHeight: 400, scrollTop: 600 };
+      Object.defineProperty(list, 'scrollHeight', { get: () => box.scrollHeight });
+      Object.defineProperty(list, 'clientHeight', { get: () => box.clientHeight });
+      Object.defineProperty(list, 'scrollTop', { get: () => box.scrollTop, set: (v: number) => (box.scrollTop = v) });
+      return box;
+    }
+
+    it('keeps following a streaming reply, however long it grows', async () => {
+      const { fake, fixture, element } = await setup({ messages: [{ role: 'user', content: 'hi' }, { role: 'assistant', content: '' }], isStreaming: true });
+      const box = fakeLayout(element.querySelector<HTMLElement>('.chat__messages')!);
+      for (let i = 1; i <= 5; i++) {
+        box.scrollHeight += 300; // each token batch grows the list by more than the 120px margin
+        fake.messages.set([{ role: 'user', content: 'hi' }, { role: 'assistant', content: 'كلام '.repeat(i * 20) }]);
+        await fixture.whenStable();
+        expect(box.scrollTop).toBe(box.scrollHeight);
+      }
+    });
+
+    it('leaves the reader alone after they scroll up', async () => {
+      const { fake, fixture, element } = await setup({ messages: [{ role: 'user', content: 'hi' }, { role: 'assistant', content: 'a' }], isStreaming: true });
+      const list = element.querySelector<HTMLElement>('.chat__messages')!;
+      const box = fakeLayout(list);
+      box.scrollTop = 100;
+      list.dispatchEvent(new Event('scroll'));
+      box.scrollHeight += 300;
+      fake.messages.set([{ role: 'user', content: 'hi' }, { role: 'assistant', content: 'a b c' }]);
+      await fixture.whenStable();
+      expect(box.scrollTop).toBe(100);
+    });
+  });
 });
 

@@ -25,25 +25,24 @@ export class Chat {
   );
 
   private readonly messageList = viewChild.required<ElementRef<HTMLElement>>('messageList');
+  private followReply = true;
 
   constructor() {
     // Runs after Angular updates the DOM (browser only), so scrollHeight includes the new text.
-    // Follow new text only when the reader is already near the bottom; never pull them
-    // away from an earlier message they scrolled up to read.
-    let wasNearBottom = true;
-    afterRenderEffect({
-      earlyRead: () => {
-        this.chat.messages();
-        const list = this.messageList().nativeElement;
-        const near = wasNearBottom;
-        wasNearBottom = list.scrollHeight - list.scrollTop - list.clientHeight < NEAR_BOTTOM_PX;
-        return near;
-      },
-      write: (near) => {
-        const list = this.messageList().nativeElement;
-        if (near()) list.scrollTop = list.scrollHeight;
-      },
+    // Follow new text while the reader is at the bottom; once they scroll up to read,
+    // leave them there. "At the bottom" is tracked from scroll events, so the list's
+    // own growth never counts as the reader moving away.
+    afterRenderEffect(() => {
+      this.chat.messages();
+      if (!this.followReply) return;
+      const list = this.messageList().nativeElement;
+      list.scrollTop = list.scrollHeight;
     });
+  }
+
+  protected onListScroll(): void {
+    const list = this.messageList().nativeElement;
+    this.followReply = list.scrollHeight - list.scrollTop - list.clientHeight < NEAR_BOTTOM_PX;
   }
 
   protected onTicketCreated(id: number): void {
