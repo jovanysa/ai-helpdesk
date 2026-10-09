@@ -19,7 +19,9 @@ Everything runs **locally and for free**: Angular 22 + Express 5 + SQLite + [Oll
 |---|---|
 | ![Ticket list](docs/screenshots/staff-tickets-dark.png) | ![Unanswered questions with the answer form open](docs/screenshots/staff-gaps.png) |
 
-<p align="center"><img src="docs/screenshots/chat-mobile.png" alt="Chat on a phone" width="260"></p>
+| Customers' 👎 and satisfaction | On a phone |
+|---|---|
+| ![Disliked replies and satisfaction](docs/screenshots/staff-disliked.png) | <img src="docs/screenshots/chat-mobile.png" alt="Chat on a phone" width="260"> |
 
 ## What it does
 
@@ -27,12 +29,17 @@ Everything runs **locally and for free**: Angular 22 + Express 5 + SQLite + [Oll
 - **Streaming chat:** replies appear word by word over Server-Sent Events. A Stop button cancels the model.
 - **Right language every time:** the reply language is chosen in code from the customer's message, not left to the model.
 - **Grounded answers:** answers come from `knowledge/*.md`. Under each reply a small line says which sections were read.
-- **Escalation:** "حوّل لموظف" (talk to a person) turns the conversation into a ticket with its transcript. A support form does the same without a chat.
+- **Escalation:** "حوّل لموظف" (talk to a person) turns the conversation into a ticket with its transcript, then shows the ticket number. A support form does the same without a chat.
+- **Rating:** 👍 / 👎 under each answer from the knowledge.
 
 **For staff** (`/staff`, login required)
 - **Tickets:** classified by the model into category and priority. Staff can filter them and update status, category or priority.
-- **Unanswered questions:** questions the chat could not answer, grouped and sorted by how often they were asked.
+- **Unanswered questions:** three tabs, each grouped and sorted by how often it was asked:
+  - questions the chat could not answer;
+  - questions refused as off-topic;
+  - replies customers rated 👎.
   - **"اكتب الإجابة"** (write the answer) adds the answer to the knowledge, and the chat uses it **immediately, without a restart**.
+  - The page also shows customer satisfaction for the last 30 days. The tickets page shows how many questions are waiting.
 
 ## How a chat message is answered
 
@@ -125,12 +132,12 @@ STAFF_EMAIL=… STAFF_PASSWORD=… npm run serve:ssr:ai-helpdesk   # http://loca
 ## Tests
 
 ```bash
-npx ng test --watch=false   # 302 tests (Vitest), no Ollama needed
+npx ng test --watch=false   # 322 tests (Vitest), no Ollama needed
 npm run build
 ```
 
 - **Server:** the server logic lives in plain functions, so the tests never need Express or a running model.
-- **Database:** tests use a real in-memory SQLite database.
+- **Database:** tests use a real in-memory SQLite database. Schema changes are versioned (`PRAGMA user_version`), and a test upgrades a database made by the older version.
 - **Angular:** components and services are tested with `HttpTestingController`.
 
 ## Project layout
@@ -141,7 +148,7 @@ src/app/chat/        Chat UI, SSE parsing, escalation form
 src/app/staff/       Staff login, tickets, unanswered questions
 knowledge/           What the assistant knows (Markdown)
 docs/superpowers/    Design specs and implementation plans for every phase
-docs/EXERCISES.md    Three practice tasks on this codebase
+docs/screenshots/    The images in this README
 ```
 
 ## Security notes
@@ -151,6 +158,7 @@ docs/EXERCISES.md    Three practice tasks on this codebase
 - **Sessions:** random tokens stored only as SHA-256 hashes, in `HttpOnly; SameSite=Strict` cookies.
 - **Staff routes:** declared in one tested route table, so a route can't become public by accident.
 - **Stored questions:** capped at 500 characters. Handled questions are deleted after 90 days.
+- **Host header:** the production server only answers to `ALLOWED_HOSTS` (protection against host-header SSRF).
 
 ## Limits
 
