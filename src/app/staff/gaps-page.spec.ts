@@ -152,5 +152,18 @@ describe('GapsPage', () => {
       await ctx.fixture.whenStable();
       expect(ctx.element.querySelector('.gap__answer-toggle')).not.toBeNull();
     });
+
+    it('clears the saved notice when switching tabs', async () => {
+      const ctx = await openForm();
+      await type(ctx, '.answer-form textarea', 'أيوه، عندنا فرع في إسكندرية.');
+      ctx.element.querySelector<HTMLButtonElement>('.answer-form button[type=submit]')!.click();
+      ctx.http.expectOne({ method: 'POST', url: '/api/gaps/answer' }).flush({ resolved: 1 });
+      await ctx.fixture.whenStable();
+      ctx.element.querySelectorAll<HTMLButtonElement>('[role=tab]')[1].click();
+      await ctx.fixture.whenStable();
+      ctx.http.expectOne((r) => r.params.get('reason') === 'off_topic').flush([]);
+      await ctx.fixture.whenStable();
+      expect(ctx.element.querySelector('[role=status]')).toBeNull();
+    });
   });
 });

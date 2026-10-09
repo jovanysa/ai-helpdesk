@@ -30,7 +30,7 @@ export class StaffLogin {
       await this.auth.login(email.trim(), password);
       // Only return to staff pages: a returnUrl from the address bar must not send people elsewhere.
       const returnUrl = this.route.snapshot.queryParamMap.get('returnUrl');
-      if (returnUrl?.startsWith('/staff') && !returnUrl.startsWith('/staff/login')) {
+      if (returnUrl && (returnUrl === '/staff' || returnUrl.startsWith('/staff/')) && !returnUrl.startsWith('/staff/login')) {
         await this.router.navigateByUrl(returnUrl);
       } else {
         await this.router.navigate(['/staff']);

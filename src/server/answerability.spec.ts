@@ -56,6 +56,11 @@ describe('createOllamaAnswerabilityCheck', () => {
     expect(await check('عندكم محو أمية؟', sources)).toBe(false);
   });
 
+  it('does not accept a section title as the quote', async () => {
+    const check = createOllamaAnswerabilityCheck({ url: 'http://x', model: 'm', fetchFn: vi.fn(async () => reply(true, 'المواعيد')) });
+    expect(await check('امتى؟', [{ title: 'المواعيد والمقر الرئيسي', content: 'الجمعة: مقفول.' }])).toBe(false);
+  });
+
   it('is not answerable when the model says no, even with a real quote', async () => {
     const check = createOllamaAnswerabilityCheck({ url: 'http://x', model: 'm', fetchFn: vi.fn(async () => reply(false)) });
     expect(await check('q', sources)).toBe(false);
@@ -74,7 +79,13 @@ describe('createOllamaAnswerabilityCheck', () => {
 });
 
 describe('quoteAppearsIn', () => {
-  const text = '[1] المواعيد\n- الجمعة: مقفول.\n- Friday: closed.';
+  const text = '- الجمعة: مقفول.\n- Friday: closed.\n- من 9 الصبح لـ 5 العصر.\n- الجمعية بتقدّم كرتونة أكل.\n- التليفون: 0100 000 0000';
+  it('tolerates the small differences a copying model makes', () => {
+    expect(quoteAppearsIn('من 9 الصبح ل 5 العصر', text)).toBe(true); // tatweel
+    expect(quoteAppearsIn('الجمعية بتقدم كرتونة أكل', text)).toBe(true); // shadda
+    expect(quoteAppearsIn('التليفون: 01000000000', text)).toBe(true); // spacing in numbers
+    expect(quoteAppearsIn('FRIDAY: CLOSED', text)).toBe(true); // case
+  });
   it('finds a quote ignoring bullets, spacing and punctuation', () => {
     expect(quoteAppearsIn('الجمعة مقفول', text)).toBe(true);
     expect(quoteAppearsIn('- Friday:  closed', text)).toBe(true);

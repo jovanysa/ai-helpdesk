@@ -1,6 +1,7 @@
 import { OLLAMA_KEEP_ALIVE } from './ai-provider';
 import { KnowledgeSource } from './knowledge-base';
 import { withTimeout } from './topic-gate';
+import { normalizeQuestion } from './unanswered-questions';
 
 /** True when the retrieved sources state the fact asked for (a written "no" counts). */
 export type AnswerabilityCheck = (
@@ -74,13 +75,18 @@ export function createOllamaAnswerabilityCheck({
       throw new Error(`Unexpected answerability check: ${data.message?.content}`);
     }
     // Both must agree: the model says yes, and the line it quoted really is in the sources.
-    return answerable && quoteAppearsIn(quote, listed);
+    // Checked against the section texts only: a title alone ("Opening hours") is not an answer.
+    return answerable && quoteAppearsIn(quote, sources.map((source) => source.content).join('\n'));
   };
 }
 
-/** True when the quote is in the text, ignoring bullets, spacing and punctuation. */
+/**
+ * True when the quote is in the text. Compares the same way questions are grouped
+ * (case, diacritics, tatweel, hamza forms, digits, punctuation), and ignores all
+ * spacing, because a copying model drops a shadda or writes "0100 000 0000" without spaces.
+ */
 export function quoteAppearsIn(quote: string, text: string): boolean {
-  const normalize = (value: string) => value.replace(/[\s\-–•*"“”'.,،؛;:؟?!()[\]]+/g, ' ').trim();
-  const needle = normalize(quote);
-  return needle.length >= MIN_QUOTE_LENGTH && normalize(text).includes(needle);
+  const squash = (value: string) => normalizeQuestion(value).replace(/\s+/g, '');
+  const needle = squash(quote);
+  return needle.length >= MIN_QUOTE_LENGTH && squash(text).includes(needle);
 }

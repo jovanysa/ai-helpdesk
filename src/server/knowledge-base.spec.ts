@@ -125,4 +125,14 @@ describe('KnowledgeBase', () => {
     await kb.refresh();
     expect((await kb.search('مواعيد', 1)).map((r) => r.title)).toEqual(['المواعيد']);
   });
+
+  it('two refreshes at the same time do not fail on the same new section', async () => {
+    const chunks = [donate];
+    const kb = new KnowledgeBase(db, fakeEmbed().embed, () => chunks, 'm');
+    await kb.search('x');
+    chunks.push(hours);
+    await expect(Promise.all([kb.refresh(), kb.refresh()])).resolves.toBeDefined();
+    expect(rows()).toEqual(['المواعيد', 'طرق التبرع']);
+  });
 });
+

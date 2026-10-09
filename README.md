@@ -56,12 +56,12 @@ flowchart LR
 | Reply language | Code (looks for Arabic letters) |
 | Greeting or thanks | Code (word list) |
 | Is this about the charity at all? | Model, JSON `{unrelated: boolean}`, ~0.4 s |
-| Do the sources answer it? | Model copies the answering line; **code checks the line is really in the sources** |
+| Do the sources answer it? | Model copies the answering line; **code checks the line is really in the sources**. If this check fails, the chat refuses rather than answer unchecked |
 | The reply itself | Model, only after the checks pass |
 
 ## Results (measured on the 8 GB M1)
 
-On a fixed set of 26 real questions (16 answerable, 10 whose facts are not in the knowledge):
+End-to-end through `/api/chat`, on a fixed set of 26 real questions (16 answerable, 10 whose facts are not in the knowledge), one run per version:
 
 | Version | Correct | Invented answers |
 |---|---|---|
@@ -71,7 +71,9 @@ On a fixed set of 26 real questions (16 answerable, 10 whose facts are not in th
 
 Response time:
 - **First word:** about 3 s once warm.
-- **First message after the models were unloaded:** 7.7 s, down from 12.6 s (models are kept loaded and warmed at start).
+- **First message after the models were unloaded:** 7.7 s, down from 12.6 s, on the production server.
+  - Every Ollama request asks to keep the model loaded for 30 minutes.
+  - The production server also loads the models and builds the index at start.
 
 **Things that did *not* work, and are documented in the specs:**
 - `qwen2.5:7b` crashed Ollama on 8 GB.
@@ -98,6 +100,13 @@ Then:
 - **Chat:** http://localhost:4200
 - **Staff:** http://localhost:4200/staff/login
 
+**Production build** (warms the models up at start):
+
+```bash
+npm run build
+STAFF_EMAIL=… STAFF_PASSWORD=… npm run serve:ssr:ai-helpdesk   # http://localhost:4000
+```
+
 | Variable | Default | Purpose |
 |---|---|---|
 | `OLLAMA_URL` | `http://localhost:11434` | Ollama server |
@@ -115,7 +124,7 @@ Then:
 ## Tests
 
 ```bash
-npx ng test --watch=false   # 290 tests (Vitest), no Ollama needed
+npx ng test --watch=false   # 301 tests (Vitest), no Ollama needed
 npm run build
 ```
 

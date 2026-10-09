@@ -15,6 +15,7 @@ export class StaffRepository {
   constructor(
     private readonly db: DatabaseSync,
     private readonly now: () => Date = () => new Date(),
+    private readonly verify: (password: string, stored: string) => boolean = verifyPassword,
   ) {}
 
   create(email: string, name: string, password: string): StaffUser {
@@ -49,7 +50,7 @@ export class StaffRepository {
       .get(normalizeEmail(email)) as unknown as StaffRow | undefined;
     // Without a row, still run one scrypt so a wrong email takes as long as a wrong password
     // (otherwise response time reveals which emails are staff accounts).
-    const valid = verifyPassword(password, row?.password_hash ?? dummyHash());
+    const valid = this.verify(password, row?.password_hash ?? dummyHash());
     return row && valid ? toUser(row) : undefined;
   }
 }

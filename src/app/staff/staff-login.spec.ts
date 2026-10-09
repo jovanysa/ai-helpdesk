@@ -62,8 +62,8 @@ describe('StaffLogin', () => {
     expect(navigateByUrl).toHaveBeenCalledWith('/staff/tickets/7');
   });
 
-  it('ignores a return address outside the staff pages', async () => {
-    const { fixture, element, navigate, navigateByUrl } = await setup(async () => undefined, 'https://evil.example/');
+  it.each(['https://evil.example/', '/staffX', '/staff/login?x=1'])('ignores the return address %s', async (returnUrl) => {
+    const { fixture, element, navigate, navigateByUrl } = await setup(async () => undefined, returnUrl);
     element.querySelector<HTMLButtonElement>('button[type=submit]')!.click();
     await fixture.whenStable();
     expect(navigateByUrl).not.toHaveBeenCalled();

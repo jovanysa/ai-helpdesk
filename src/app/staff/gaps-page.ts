@@ -47,6 +47,7 @@ export class GapsPage implements OnInit {
   protected select(reason: GapReason): void {
     this.reason.set(reason);
     this.answering.set(null);
+    this.notice.set(null);
     this.load();
   }
 
@@ -98,11 +99,13 @@ export class GapsPage implements OnInit {
     if (!this.canSave()) return;
     this.saving.set(true);
     this.answerError.set(null);
-    this.api.answer(this.reason(), group.key, this.draftTitle().trim(), this.draftAnswer().trim()).subscribe({
+    const reason = this.reason();
+    this.api.answer(reason, group.key, this.draftTitle().trim(), this.draftAnswer().trim()).subscribe({
       next: () => {
         this.saving.set(false);
         this.answering.set(null);
-        this.groups.update((groups) => groups.filter((g) => g.key !== group.key));
+        // The tab may have changed while saving; only touch the list it was saved from.
+        if (this.reason() === reason) this.groups.update((groups) => groups.filter((g) => g.key !== group.key));
         this.notice.set('اتضافت الإجابة للمعرفة، والشات هيستخدمها من دلوقتي.');
       },
       error: (error: unknown) => {

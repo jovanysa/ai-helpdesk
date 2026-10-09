@@ -1,5 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite';
 import { openDatabase } from './db';
+import { verifyPassword } from './passwords';
 import { StaffRepository } from './staff-repository';
 
 describe('StaffRepository', () => {
@@ -40,17 +41,12 @@ describe('StaffRepository', () => {
     expect(db.prepare('SELECT COUNT(*) AS n FROM staff_users').get()?.['n']).toBe(1);
   });
 
-  it('takes about as long for an unknown email as for a wrong password', () => {
-    staff.create('a@x.example', 'A', 'pw123456');
-    const time = (email: string) => {
-      const start = performance.now();
-      for (let i = 0; i < 3; i++) staff.authenticate(email, 'wrong-password');
-      return performance.now() - start;
-    };
-    time('a@x.example'); // warm up scrypt
-    const wrongPassword = time('a@x.example');
-    const unknownEmail = time('nobody@x.example');
-    // Before the fix an unknown email returned ~40x faster than a wrong password.
-    expect(unknownEmail).toBeGreaterThan(wrongPassword * 0.5);
+  it('runs the password check for an unknown email too, so timing reveals nothing', () => {
+    const verify = vi.fn(verifyPassword);
+    const repo = new StaffRepository(db, undefined, verify);
+    repo.create('a@x.example', 'A', 'pw123456');
+    expect(repo.authenticate('nobody@x.example', 'pw123456')).toBeUndefined();
+    expect(verify).toHaveBeenCalledTimes(1);
+    expect(verify.mock.calls[0][1]).toMatch(/^scrypt\$/);
   });
 });

@@ -90,7 +90,8 @@ export class KnowledgeBase {
 
     const keep = new Set(chunks.map((chunk) => chunk.hash));
     const insert = this.db.prepare(
-      'INSERT INTO knowledge_chunks (file, title, content, content_hash, embedding) VALUES (?, ?, ?, ?, ?)',
+      // OR IGNORE: two overlapping refreshes may both embed the same new section.
+      'INSERT OR IGNORE INTO knowledge_chunks (file, title, content, content_hash, embedding) VALUES (?, ?, ?, ?, ?)',
     );
     const remove = this.db.prepare('DELETE FROM knowledge_chunks WHERE content_hash = ?');
 
@@ -125,10 +126,14 @@ export class KnowledgeBase {
 
   /** Indexes once; if that fails, the next search tries again (e.g. after `ollama pull`). */
   private ensureIndexed(): Promise<void> {
-    this.indexing ??= this.reindex().catch((error: unknown) => {
-      this.indexing = null;
-      throw error;
-    });
+    if (!this.indexing) {
+      const run: Promise<void> = this.reindex().catch((error: unknown) => {
+        // Only forget this run if a newer refresh has not replaced it already.
+        if (this.indexing === run) this.indexing = null;
+        throw error;
+      });
+      this.indexing = run;
+    }
     return this.indexing;
   }
 
