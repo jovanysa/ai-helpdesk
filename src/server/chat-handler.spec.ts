@@ -1,6 +1,7 @@
 import { AiMessage, AiProvider } from './ai-provider';
 import { REFUSAL_AR, REFUSAL_EN, buildSystemPrompt } from './charity-prompt';
 import { ChatTurn, buildSearchQuery, startChatStream, toSse, validateChatRequest } from './chat-handler';
+import { AnswerabilityCheck } from './answerability';
 import { GapRecorder } from './gap-recorder';
 import { TopicGate } from './topic-gate';
 import { KnowledgeSearch, KnowledgeSource } from './knowledge-base';
@@ -65,7 +66,7 @@ describe('toSse', () => {
 const allowAll = async () => true;
 
 function fakeGaps() {
-  return { recordOffTopic: vi.fn(), reviewReply: vi.fn(async () => undefined) } satisfies GapRecorder;
+  return { recordOffTopic: vi.fn(), recordNoAnswer: vi.fn() } satisfies GapRecorder;
 }
 
 /** Positional helper for the older tests; gap recording is a no-op spy. */
@@ -76,8 +77,9 @@ function run(
   turns: ChatTurn[],
   signal: AbortSignal,
   gaps: GapRecorder = fakeGaps(),
+  isAnswerable: AnswerabilityCheck = async () => true,
 ) {
-  return startChatStream({ provider, knowledge, isAboutFoundation, gaps }, turns, signal);
+  return startChatStream({ provider, knowledge, isAboutFoundation, isAnswerable, gaps }, turns, signal);
 }
 
 const hoursSource: KnowledgeSource = { file: 'about.md', title: 'المواعيد', content: 'الجمعة: مقفول.', score: 0.9 };
@@ -261,49 +263,77 @@ describe('startChatStream', () => {
     if (!start.ok) throw new Error('expected ok');
     await collect(start.events);
     expect(gaps.recordOffTopic).toHaveBeenCalledWith('مين كسب الماتش؟', REFUSAL_AR);
-    expect(gaps.reviewReply).not.toHaveBeenCalled();
+      });
+
+  it('answers with the refusal and records the question when the sources do not hold the answer', async () => {
+    const seen: AiMessage[][] = [];
+    const gaps = fakeGaps();
+    const isAnswerable = vi.fn(async () => false);
+    const start = await run(fakeProvider(['نعم، نقدم محو أمية'], seen), fakeKnowledge(), allowAll, [userTurn], new AbortController().signal, gaps, isAnswerable);
+    if (!start.ok) throw new Error('expected ok');
+
+    expect(await collect(start.events)).toEqual([
+      toSse({ type: 'sources', sources: [] }),
+      toSse({ type: 'token', text: REFUSAL_AR }),
+      toSse({ type: 'done' }),
+    ]);
+    expect(seen).toEqual([]);
+    expect(isAnswerable).toHaveBeenCalledWith(userTurn.content, [hoursSource]);
+    expect(gaps.recordNoAnswer).toHaveBeenCalledWith(userTurn.content, REFUSAL_AR);
   });
 
-  it('reviews the full reply once the stream is done', async () => {
+  it('checks a short follow-up together with the previous question but records the current one', async () => {
     const gaps = fakeGaps();
-    const start = await run(fakeProvider(['معنديش ', 'المعلومة دي']), fakeKnowledge(), allowAll, [userTurn], new AbortController().signal, gaps);
+    const isAnswerable = vi.fn(async () => false);
+    await run(
+      fakeProvider([]),
+      fakeKnowledge(),
+      allowAll,
+      [
+        { role: 'user', content: 'ازاي اتبرع؟' },
+        { role: 'assistant', content: 'بفودافون كاش' },
+        { role: 'user', content: 'وبالفيزا؟' },
+      ],
+      new AbortController().signal,
+      gaps,
+      isAnswerable,
+    );
+    expect(isAnswerable).toHaveBeenCalledWith('ازاي اتبرع؟\nوبالفيزا؟', [hoursSource]);
+    expect(gaps.recordNoAnswer).toHaveBeenCalledWith('وبالفيزا؟', REFUSAL_AR);
+  });
+
+  it('answers normally and records nothing when the sources hold the answer', async () => {
+    const gaps = fakeGaps();
+    const start = await run(fakeProvider(['الجمعة مقفول.']), fakeKnowledge(), allowAll, [userTurn], new AbortController().signal, gaps);
     if (!start.ok) throw new Error('expected ok');
-    await collect(start.events);
-    expect(gaps.reviewReply).toHaveBeenCalledTimes(1);
-    expect(gaps.reviewReply).toHaveBeenCalledWith(userTurn.content, 'معنديش المعلومة دي');
+    expect(await collect(start.events)).toContain(toSse({ type: 'token', text: 'الجمعة مقفول.' }));
+    expect(gaps.recordNoAnswer).not.toHaveBeenCalled();
     expect(gaps.recordOffTopic).not.toHaveBeenCalled();
   });
 
-  it('does not review a reply that failed mid-stream', async () => {
+  it('still answers when the answerability check itself fails', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    const gaps = fakeGaps();
-    const start = await run(fakeProvider(['part', new Error('boom')]), fakeKnowledge(), allowAll, [userTurn], new AbortController().signal, gaps);
-    if (!start.ok) throw new Error('expected ok');
-    await collect(start.events);
-    expect(gaps.reviewReply).not.toHaveBeenCalled();
-  });
-
-  it('does not review a reply the customer stopped', async () => {
-    const controller = new AbortController();
-    const gaps = fakeGaps();
-    const provider: AiProvider = {
-      async *streamChat() {
-        yield 'part';
-        controller.abort();
-        throw new Error('aborted');
+    const start = await run(
+      fakeProvider(['أهلًا']),
+      fakeKnowledge(),
+      allowAll,
+      [userTurn],
+      new AbortController().signal,
+      fakeGaps(),
+      async () => {
+        throw new Error('timeout');
       },
-    };
-    const start = await run(provider, fakeKnowledge(), allowAll, [userTurn], controller.signal, gaps);
+    );
     if (!start.ok) throw new Error('expected ok');
-    await collect(start.events);
-    expect(gaps.reviewReply).not.toHaveBeenCalled();
+    expect(await collect(start.events)).toContain(toSse({ type: 'token', text: 'أهلًا' }));
+    expect(console.error).toHaveBeenCalledWith('[chat] answerability check failed:', 'timeout');
   });
 
-  it('does not review a blank reply', async () => {
-    const gaps = fakeGaps();
-    const start = await run(fakeProvider(['  ']), fakeKnowledge(), allowAll, [userTurn], new AbortController().signal, gaps);
+  it('does not check answerability for off-topic messages', async () => {
+    const isAnswerable = vi.fn(async () => true);
+    const start = await run(fakeProvider([]), fakeKnowledge(), async () => false, [userTurn], new AbortController().signal, fakeGaps(), isAnswerable);
     if (!start.ok) throw new Error('expected ok');
     await collect(start.events);
-    expect(gaps.reviewReply).not.toHaveBeenCalled();
+    expect(isAnswerable).not.toHaveBeenCalled();
   });
 });

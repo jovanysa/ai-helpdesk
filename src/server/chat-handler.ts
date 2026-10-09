@@ -1,4 +1,5 @@
 import { AiMessage, AiProvider } from './ai-provider';
+import { AnswerabilityCheck } from './answerability';
 import { REFUSALS, buildSystemPrompt, detectLanguage } from './charity-prompt';
 import { GapRecorder } from './gap-recorder';
 import { KnowledgeSearch, KnowledgeSource } from './knowledge-base';
@@ -62,20 +63,21 @@ export function buildSearchQuery(turns: ChatTurn[]): string {
   return last.trim().length < SHORT_QUESTION && previous ? `${previous}\n${last}` : last;
 }
 
-/**
- * Checks the topic and finds the knowledge for the question, then starts the AI
- * reply and waits for its first piece, so a failure can still be reported with a
- * normal HTTP status before any SSE bytes are sent.
- */
 export interface ChatDeps {
   provider: AiProvider;
   knowledge: KnowledgeSearch;
   isAboutFoundation: TopicGate;
+  isAnswerable: AnswerabilityCheck;
   gaps: GapRecorder;
 }
 
+/**
+ * Checks the topic, finds the knowledge and checks it holds the answer, then starts
+ * the AI reply and waits for its first piece, so a failure can still be reported
+ * with a normal HTTP status before any SSE bytes are sent.
+ */
 export async function startChatStream(
-  { provider, knowledge, isAboutFoundation, gaps }: ChatDeps,
+  { provider, knowledge, isAboutFoundation, isAnswerable, gaps }: ChatDeps,
   turns: ChatTurn[],
   signal: AbortSignal,
 ): Promise<ChatStreamStart> {
@@ -100,6 +102,13 @@ export async function startChatStream(
     return { ok: true, events: refusalEvents(REFUSALS[language]) };
   }
 
+  // The model is asked to answer only when the sources hold the answer; otherwise the
+  // code says "I don't know" and records the question for staff to fill in.
+  if (!(await checkAnswerable(isAnswerable, query, sources))) {
+    gaps.recordNoAnswer(current, REFUSALS[language]);
+    return { ok: true, events: refusalEvents(REFUSALS[language]) };
+  }
+
   const messages: AiMessage[] = [{ role: 'system', content: buildSystemPrompt(sources, language) }, ...turns];
   const iterator = provider.streamChat(messages, signal)[Symbol.asyncIterator]();
 
@@ -110,9 +119,7 @@ export async function startChatStream(
     return { ok: false, error };
   }
   const sourcesEvent = toSse({ type: 'sources', sources: sources.map(({ title, file }) => ({ title, file })) });
-  // Once the reply is complete, check in the background whether it said "I don't know".
-  const onReply = (reply: string) => void gaps.reviewReply(current, reply);
-  return { ok: true, events: sseEvents(sourcesEvent, first, iterator, signal, onReply) };
+  return { ok: true, events: sseEvents(sourcesEvent, first, iterator, signal) };
 }
 
 /** If the check itself fails, answer anyway: the prompt's refusal rule is the fallback. */
@@ -121,6 +128,20 @@ async function checkTopic(isAboutFoundation: TopicGate, current: string, previou
     return await isAboutFoundation(current, previous);
   } catch (error) {
     console.error('[chat] topic check failed:', error instanceof Error ? error.message : error);
+    return true;
+  }
+}
+
+/** If the check itself fails, answer anyway: the prompt still forbids guessing. */
+async function checkAnswerable(
+  isAnswerable: AnswerabilityCheck,
+  query: string,
+  sources: KnowledgeSource[],
+): Promise<boolean> {
+  try {
+    return await isAnswerable(query, sources);
+  } catch (error) {
+    console.error('[chat] answerability check failed:', error instanceof Error ? error.message : error);
     return true;
   }
 }
@@ -136,13 +157,10 @@ async function* sseEvents(
   first: IteratorResult<string>,
   iterator: AsyncIterator<string>,
   signal: AbortSignal,
-  onReply: (reply: string) => void,
 ): AsyncGenerator<string> {
   yield sourcesEvent;
-  let reply = '';
   try {
     for (let result = first; !result.done; result = await iterator.next()) {
-      reply += result.value;
       yield toSse({ type: 'token', text: result.value });
     }
     yield toSse({ type: 'done' });
@@ -151,8 +169,5 @@ async function* sseEvents(
     if (signal.aborted) return;
     console.error('[chat] AI stream failed:', error);
     yield toSse({ type: 'error', message: 'The AI stream failed.' });
-    return;
   }
-  // Only complete replies are reviewed: not stopped, not failed, not blank.
-  if (!signal.aborted && reply.trim()) onReply(reply);
 }
