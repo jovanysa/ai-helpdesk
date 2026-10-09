@@ -1,7 +1,7 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { Component, inject, signal } from '@angular/core';
 import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { AuthService } from '../auth/auth.service';
 
 @Component({
@@ -12,6 +12,7 @@ import { AuthService } from '../auth/auth.service';
 export class StaffLogin {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
 
   protected readonly form = inject(NonNullableFormBuilder).group({
     email: ['', [Validators.required, Validators.email]],
@@ -27,7 +28,13 @@ export class StaffLogin {
     const { email, password } = this.form.getRawValue();
     try {
       await this.auth.login(email.trim(), password);
-      await this.router.navigate(['/staff']);
+      // Only return to staff pages: a returnUrl from the address bar must not send people elsewhere.
+      const returnUrl = this.route.snapshot.queryParamMap.get('returnUrl');
+      if (returnUrl?.startsWith('/staff') && !returnUrl.startsWith('/staff/login')) {
+        await this.router.navigateByUrl(returnUrl);
+      } else {
+        await this.router.navigate(['/staff']);
+      }
     } catch (error) {
       this.error.set(
         error instanceof HttpErrorResponse && error.status === 401

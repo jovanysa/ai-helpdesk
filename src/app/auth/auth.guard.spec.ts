@@ -9,7 +9,7 @@ describe('authGuard', () => {
       providers: [provideRouter([]), { provide: AuthService, useValue: { isLoggedIn: async () => loggedIn } }],
     });
     return TestBed.runInInjectionContext(() =>
-      authGuard({} as ActivatedRouteSnapshot, {} as RouterStateSnapshot),
+      authGuard({} as ActivatedRouteSnapshot, { url: '/staff/tickets/7' } as RouterStateSnapshot),
     ) as Promise<boolean | UrlTree>;
   }
 
@@ -20,6 +20,6 @@ describe('authGuard', () => {
   it('redirects to /staff/login when logged out', async () => {
     const result = await run(false);
     expect(result).toBeInstanceOf(UrlTree);
-    expect(TestBed.inject(Router).serializeUrl(result as UrlTree)).toBe('/staff/login');
+    expect(TestBed.inject(Router).serializeUrl(result as UrlTree)).toBe('/staff/login?returnUrl=%2Fstaff%2Ftickets%2F7');
   });
 });

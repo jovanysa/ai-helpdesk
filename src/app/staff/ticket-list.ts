@@ -1,6 +1,7 @@
 import { DatePipe } from '@angular/common';
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
+import { Subscription } from 'rxjs';
 import { AuthService } from '../auth/auth.service';
 import {
   CATEGORY_LABELS,
@@ -29,6 +30,7 @@ export class TicketList implements OnInit {
   protected readonly loading = signal(false);
   protected readonly failed = signal(false);
   private filters: TicketFilters = {};
+  private loadRequest?: Subscription;
 
   protected readonly statuses = TICKET_STATUSES;
   protected readonly categories = TICKET_CATEGORIES;
@@ -42,8 +44,10 @@ export class TicketList implements OnInit {
   }
 
   protected load(): void {
+    // An answer for an older filter must never replace the one for the current filter.
+    this.loadRequest?.unsubscribe();
     this.loading.set(true);
-    this.api.list(this.filters).subscribe({
+    this.loadRequest = this.api.list(this.filters).subscribe({
       next: (tickets) => {
         this.tickets.set(tickets);
         this.failed.set(false);

@@ -48,9 +48,11 @@ describe('EscalationForm', () => {
       description: 'محتاجة حد يكلمني النهارده',
       transcript: conversation.slice(0, 2),
     });
+    const created = vi.fn();
+    fixture.componentInstance.created.subscribe(created);
     req.flush({ id: 4 });
     await fixture.whenStable();
-    expect(element.textContent).toContain('تم تسجيل طلبك رقم #4');
+    expect(created).toHaveBeenCalledWith(4);
   });
 
   it('uses the last user message when there is no note', async () => {

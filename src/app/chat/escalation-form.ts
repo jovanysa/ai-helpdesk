@@ -20,6 +20,8 @@ export class EscalationForm {
   private readonly chat = inject(ChatService);
 
   readonly closed = output<void>();
+  /** Emits the new ticket's number; the chat then shows it in place of the escalate button. */
+  readonly created = output<number>();
 
   protected readonly form = inject(NonNullableFormBuilder).group({
     name: ['', trimmedLength(2, 100)],
@@ -28,7 +30,6 @@ export class EscalationForm {
   });
   protected readonly submitting = signal(false);
   protected readonly failed = signal(false);
-  protected readonly ticketId = signal<number | null>(null);
 
   protected submit(): void {
     if (this.form.invalid || this.submitting()) return;
@@ -45,7 +46,7 @@ export class EscalationForm {
       .create({ name: name.trim(), phone: phone.trim(), description: this.describe(note, transcript), transcript })
       .subscribe({
         next: ({ id }) => {
-          this.ticketId.set(id);
+          this.created.emit(id);
           this.submitting.set(false);
         },
         error: () => {

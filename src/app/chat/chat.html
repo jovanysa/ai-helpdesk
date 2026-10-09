@@ -7,7 +7,7 @@
     <a routerLink="/support/new">قدّم طلب</a>
   </header>
 
-  <section class="chat__messages" #messageList aria-live="polite">
+  <section class="chat__messages" #messageList aria-live="polite" [attr.aria-busy]="chat.isStreaming()">
     @if (chat.messages().length === 0) {
       <div class="chat__empty">
         <p>أهلًا بيك! اسألني عن التبرع أو التطوع أو طلب المساعدة.</p>
@@ -21,15 +21,17 @@
     }
 
     @for (message of chat.messages(); track $index; let last = $last) {
-      <div class="message" [class.message--user]="message.role === 'user'" dir="auto">{{ message.content }}@if (last && message.role === 'assistant' && chat.isStreaming()) {<span class="cursor">▌</span>}</div>
+      <div class="message" [class.message--user]="message.role === 'user'" dir="auto">{{ message.content }}@if (last && message.role === 'assistant' && chat.isStreaming()) {<span class="cursor" aria-hidden="true">▌</span>}</div>
       @if (message.role === 'assistant' && message.sources?.length) {
         <p class="message__sources">اتقرا من: {{ sourceTitles(message) }}</p>
       }
     }
   </section>
 
-  @if (escalating()) {
-    <app-escalation-form (closed)="escalating.set(false)" />
+  @if (escalatedTicketId(); as id) {
+    <p class="notice chat__escalated" role="status">طلبك رقم #{{ id }} اتسجّل، هيتواصل معاك موظف قريب.</p>
+  } @else if (escalating()) {
+    <app-escalation-form (closed)="escalating.set(false)" (created)="onTicketCreated($event)" />
   } @else if (canEscalate()) {
     <div class="chat__escalate">
       <button type="button" class="btn btn--secondary" (click)="escalating.set(true)">حوّل لموظف</button>

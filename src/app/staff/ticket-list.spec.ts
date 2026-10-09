@@ -70,4 +70,20 @@ describe('TicketList', () => {
     expect(element.textContent).toContain('فشل التصنيف');
     expect(element.textContent).toContain('جاري التصنيف…');
   });
+
+  it('ignores a slow answer for a filter that was already changed', async () => {
+    const { fixture, http, element } = await setup();
+    http.expectOne('/api/tickets').flush([]);
+    const select = element.querySelector<HTMLSelectElement>('select[data-filter=status]')!;
+    select.value = 'resolved';
+    select.dispatchEvent(new Event('change'));
+    const slow = http.expectOne((r) => r.params.get('status') === 'resolved');
+    select.value = 'new';
+    select.dispatchEvent(new Event('change'));
+    const fresh = http.expectOne((r) => r.params.get('status') === 'new');
+    expect(slow.cancelled).toBe(true);
+    fresh.flush([ticket]);
+    await fixture.whenStable();
+    expect(element.querySelectorAll('.ticket')).toHaveLength(1);
+  });
 });

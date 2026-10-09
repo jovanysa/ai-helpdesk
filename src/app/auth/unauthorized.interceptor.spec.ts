@@ -31,7 +31,7 @@ describe('unauthorizedInterceptor', () => {
     backend.expectOne('/api/tickets').flush({}, { status: 401, statusText: 'Unauthorized' });
     expect(failed).toBe(true);
     expect(clear).toHaveBeenCalled();
-    expect(navigate).toHaveBeenCalledWith(['/staff/login']);
+    expect(navigate).toHaveBeenCalledWith(['/staff/login'], { queryParams: { returnUrl: '/' } });
   });
 
   it('does not redirect on a 401 from /api/auth/login', () => {

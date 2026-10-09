@@ -119,4 +119,27 @@ describe('Chat', () => {
     expect(lines).toHaveLength(1);
     expect(lines[0].textContent?.trim()).toBe('اتقرا من: طرق التبرع، إيصال التبرع');
   });
+
+  it('shows the ticket number instead of the escalate button once a ticket was created', async () => {
+    const { fixture, element } = await setup({
+      messages: [{ role: 'user', content: 'hi' }, { role: 'assistant', content: 'أهلًا' }],
+    });
+    element.querySelector<HTMLButtonElement>('.chat__escalate button')!.click();
+    await fixture.whenStable();
+    const form = fixture.debugElement.query((el) => el.name === 'app-escalation-form');
+    form.componentInstance.created.emit(12);
+    await fixture.whenStable();
+    expect(element.querySelector('.chat__escalate button')).toBeNull();
+    expect(element.querySelector('app-escalation-form')).toBeNull();
+    expect(element.querySelector('[role=status]')?.textContent).toContain('طلبك رقم #12');
+  });
+
+  it('tells screen readers when a reply is being written and hides the cursor from them', async () => {
+    const { element } = await setup({
+      messages: [{ role: 'user', content: 'hi' }, { role: 'assistant', content: 'أه' }],
+      isStreaming: true,
+    });
+    expect(element.querySelector('.chat__messages')?.getAttribute('aria-busy')).toBe('true');
+    expect(element.querySelector('.cursor')?.getAttribute('aria-hidden')).toBe('true');
+  });
 });

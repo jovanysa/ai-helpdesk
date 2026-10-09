@@ -4,6 +4,8 @@ import { ChatService, MAX_MESSAGE_LENGTH } from './chat.service';
 import { EscalationForm } from './escalation-form';
 import { ChatMessage } from './message.model';
 
+const NEAR_BOTTOM_PX = 120;
+
 @Component({
   selector: 'app-chat',
   imports: [RouterLink, EscalationForm],
@@ -16,6 +18,7 @@ export class Chat {
   protected readonly maxLength = MAX_MESSAGE_LENGTH;
   protected readonly suggestions = ['أتبرع إزاي؟', 'عايز أتطوع', 'محتاج مساعدة'];
   protected readonly escalating = signal(false);
+  protected readonly escalatedTicketId = signal<number | null>(null);
   /** Offer a human once the assistant has answered at least once. */
   protected readonly canEscalate = computed(
     () => !this.chat.isStreaming() && this.chat.messages().some((m) => m.role === 'assistant' && m.content.trim()),
@@ -25,11 +28,27 @@ export class Chat {
 
   constructor() {
     // Runs after Angular updates the DOM (browser only), so scrollHeight includes the new text.
-    afterRenderEffect(() => {
-      this.chat.messages();
-      const list = this.messageList().nativeElement;
-      list.scrollTop = list.scrollHeight;
+    // Follow new text only when the reader is already near the bottom; never pull them
+    // away from an earlier message they scrolled up to read.
+    let wasNearBottom = true;
+    afterRenderEffect({
+      earlyRead: () => {
+        this.chat.messages();
+        const list = this.messageList().nativeElement;
+        const near = wasNearBottom;
+        wasNearBottom = list.scrollHeight - list.scrollTop - list.clientHeight < NEAR_BOTTOM_PX;
+        return near;
+      },
+      write: (near) => {
+        const list = this.messageList().nativeElement;
+        if (near()) list.scrollTop = list.scrollHeight;
+      },
     });
+  }
+
+  protected onTicketCreated(id: number): void {
+    this.escalatedTicketId.set(id);
+    this.escalating.set(false);
   }
 
   protected sourceTitles(message: ChatMessage): string {
@@ -37,7 +56,6 @@ export class Chat {
   }
 
   protected onInput(event: Event): void {
-
     this.draft.set((event.target as HTMLTextAreaElement).value);
   }
 

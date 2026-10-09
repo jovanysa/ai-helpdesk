@@ -13,7 +13,7 @@ export const unauthorizedInterceptor: HttpInterceptorFn = (req, next) => {
       // 401s from the auth endpoints themselves are expected (wrong password, not logged in yet).
       if (error instanceof HttpErrorResponse && error.status === 401 && !req.url.startsWith('/api/auth/')) {
         auth.clear();
-        void router.navigate(['/staff/login']);
+        void router.navigate(['/staff/login'], { queryParams: { returnUrl: router.url } });
       }
       return throwError(() => error);
     }),
