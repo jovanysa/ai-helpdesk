@@ -166,4 +166,21 @@ describe('GapsPage', () => {
       expect(ctx.element.querySelector('[role=status]')).toBeNull();
     });
   });
+  it('shows customer satisfaction and a tab for disliked replies', async () => {
+    const { fixture, http, element } = await setup();
+    http.expectOne((r) => r.url === '/api/gaps').flush([]);
+    http.expectOne('/api/feedback/summary').flush({ helpful: 8, total: 10 });
+    await fixture.whenStable();
+    expect(element.querySelector('.satisfaction')?.textContent).toContain('80%');
+    const tabs = [...element.querySelectorAll<HTMLButtonElement>('[role=tab]')].map((t) => t.textContent?.trim());
+    expect(tabs).toEqual(['معندوش المعلومة', 'اترفضت كبرّه الجمعية', 'ردود مش مفيدة']);
+  });
+
+  it('says when there are no ratings yet', async () => {
+    const { fixture, http, element } = await setup();
+    http.expectOne((r) => r.url === '/api/gaps').flush([]);
+    http.expectOne('/api/feedback/summary').flush({ helpful: 0, total: 0 });
+    await fixture.whenStable();
+    expect(element.querySelector('.satisfaction')?.textContent).toContain('لسه مفيش تقييمات');
+  });
 });

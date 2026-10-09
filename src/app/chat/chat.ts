@@ -3,6 +3,7 @@ import { RouterLink } from '@angular/router';
 import { ChatService, MAX_MESSAGE_LENGTH } from './chat.service';
 import { EscalationForm } from './escalation-form';
 import { ChatMessage } from './message.model';
+import { FeedbackApi } from './feedback-api';
 
 const NEAR_BOTTOM_PX = 120;
 
@@ -14,6 +15,9 @@ const NEAR_BOTTOM_PX = 120;
 })
 export class Chat {
   protected readonly chat = inject(ChatService);
+  private readonly feedback = inject(FeedbackApi);
+  /** Message indexes the customer already rated. */
+  protected readonly rated = signal<ReadonlySet<number>>(new Set());
   protected readonly draft = signal('');
   protected readonly maxLength = MAX_MESSAGE_LENGTH;
   protected readonly suggestions = ['أتبرع إزاي؟', 'عايز أتطوع', 'محتاج مساعدة'];
@@ -43,6 +47,19 @@ export class Chat {
       const list = this.messageList().nativeElement;
       list.scrollTop = list.scrollHeight;
     });
+  }
+
+  /** Answers written from the knowledge can be rated; refusals (no sources) are already logged. */
+  protected canRate(message: ChatMessage, index: number, last: boolean): boolean {
+    return message.role === 'assistant' && !!message.sources?.length && !!message.content.trim() && !(last && this.chat.isStreaming());
+  }
+
+  protected rate(index: number, helpful: boolean): void {
+    const messages = this.chat.messages();
+    const question = messages.slice(0, index).reverse().find((m) => m.role === 'user')?.content ?? '';
+    this.rated.update((done) => new Set(done).add(index));
+    // A lost rating is not worth bothering the customer about.
+    this.feedback.give(question, messages[index].content, helpful).subscribe({ error: () => undefined });
   }
 
   protected onListScroll(): void {

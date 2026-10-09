@@ -1,5 +1,5 @@
 import { provideHttpClient } from '@angular/common/http';
-import { provideHttpClientTesting } from '@angular/common/http/testing';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
@@ -27,7 +27,7 @@ describe('Chat', () => {
     }).compileComponents();
     const fixture = TestBed.createComponent(Chat);
     await fixture.whenStable();
-    return { fake, fixture, element: fixture.nativeElement as HTMLElement };
+    return { fake, fixture, http: TestBed.inject(HttpTestingController), element: fixture.nativeElement as HTMLElement };
   }
 
   it('shows the three suggestions when the chat is empty and sends the clicked one', async () => {
@@ -195,5 +195,33 @@ describe('Chat', () => {
       expect(box.scrollTop).toBe(box.scrollHeight);
     });
   });
-});
+  describe('rating replies', () => {
+    const answered: ChatMessage[] = [
+      { role: 'user', content: 'ازاي اتبرع؟' },
+      { role: 'assistant', content: 'بفودافون كاش', sources: [{ title: 'طرق التبرع', file: 'donations.md' }] },
+    ];
 
+    it('offers 👍 / 👎 under an answer from the knowledge, but not under a refusal', async () => {
+      const { element } = await setup({
+        messages: [...answered, { role: 'user', content: 'مين كسب الماتش؟' }, { role: 'assistant', content: 'معنديش المعلومة دي.', sources: [] }],
+      });
+      expect(element.querySelectorAll('.rating')).toHaveLength(1);
+    });
+
+    it('sends a thumbs-down with the question and reply, then thanks the customer', async () => {
+      const { fixture, http, element } = await setup({ messages: answered });
+      element.querySelector<HTMLButtonElement>('.rating button[aria-label="مش مفيد"]')!.click();
+      const req = http.expectOne({ method: 'POST', url: '/api/feedback' });
+      expect(req.request.body).toEqual({ question: 'ازاي اتبرع؟', reply: 'بفودافون كاش', helpful: false });
+      req.flush(null, { status: 204, statusText: 'No Content' });
+      await fixture.whenStable();
+      expect(element.querySelector('.rating')?.textContent).toContain('شكرًا على رأيك');
+      expect(element.querySelector('.rating button')).toBeNull();
+    });
+
+    it('does not offer a rating while the reply is still being written', async () => {
+      const { element } = await setup({ messages: answered, isStreaming: true });
+      expect(element.querySelector('.rating')).toBeNull();
+    });
+  });
+});

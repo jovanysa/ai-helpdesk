@@ -18,7 +18,9 @@ export class GapsPage implements OnInit {
   protected readonly tabs: { reason: GapReason; label: string }[] = [
     { reason: 'no_answer', label: 'معندوش المعلومة' },
     { reason: 'off_topic', label: 'اترفضت كبرّه الجمعية' },
+    { reason: 'disliked', label: 'ردود مش مفيدة' },
   ];
+  protected readonly satisfaction = signal<{ helpful: number; total: number } | null>(null);
   protected readonly reason = signal<GapReason>('no_answer');
   protected readonly groups = signal<GapGroup[]>([]);
   protected readonly loading = signal(false);
@@ -42,6 +44,7 @@ export class GapsPage implements OnInit {
 
   ngOnInit(): void {
     this.load();
+    this.api.satisfaction().subscribe({ next: (value) => this.satisfaction.set(value), error: () => undefined });
   }
 
   protected select(reason: GapReason): void {
@@ -88,6 +91,10 @@ export class GapsPage implements OnInit {
     this.draftAnswer.set('');
     this.answerError.set(null);
     this.notice.set(null);
+  }
+
+  protected percent(value: { helpful: number; total: number }): number {
+    return Math.round((value.helpful / value.total) * 100);
   }
 
   protected inputValue(event: Event): string {

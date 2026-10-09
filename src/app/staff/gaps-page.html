@@ -5,6 +5,16 @@
     <button class="btn btn--secondary" type="button" (click)="load()" [disabled]="loading()">تحديث</button>
   </header>
 
+  @if (satisfaction(); as value) {
+    <p class="satisfaction">
+      @if (value.total > 0) {
+        رضا العملاء آخر 30 يوم: <strong>{{ percent(value) }}%</strong> ({{ value.helpful }} من {{ value.total }} تقييم)
+      } @else {
+        لسه مفيش تقييمات من العملاء.
+      }
+    </p>
+  }
+
   <div class="tabs" role="tablist">
     @for (tab of tabs; track tab.reason) {
       <button
@@ -73,7 +83,9 @@
   </ul>
 
   <p class="hint">
-    @if (reason() === 'no_answer') {
+    @if (reason() === 'disliked') {
+      دي ردود العملاء قالوا إنها مش مفيدة: "اكتب الإجابة" بتضيف إجابة أوضح للمعرفة.
+    } @else if (reason() === 'no_answer') {
       "اكتب الإجابة" بتضيفها لملف <code>knowledge/staff-answers.md</code> والشات بيستخدمها على طول. ولو السؤال مش محتاج إجابة، دوس "تم".
     } @else {
       لو سؤال من دول كان عن الجمعية فعلًا، خطوة الفحص رفضته بالغلط: "اكتب الإجابة" بتصلّحه، لأن الشات بيثق في إجابة قريبة جدًا من السؤال.

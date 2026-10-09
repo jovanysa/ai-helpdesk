@@ -20,10 +20,21 @@
       </div>
     }
 
-    @for (message of chat.messages(); track $index; let last = $last) {
+    @for (message of chat.messages(); track $index; let last = $last, index = $index) {
       <div class="message" [class.message--user]="message.role === 'user'" dir="auto">{{ message.content }}@if (last && message.role === 'assistant' && chat.isStreaming()) {<span class="cursor" aria-hidden="true">▌</span>}</div>
       @if (message.role === 'assistant' && message.sources?.length) {
         <p class="message__sources">اتقرا من: {{ sourceTitles(message) }}</p>
+      }
+      @if (canRate(message, index, last)) {
+        <div class="rating">
+          @if (rated().has(index)) {
+            <span>شكرًا على رأيك 🙏</span>
+          } @else {
+            <span>الرد ده كان مفيد؟</span>
+            <button type="button" aria-label="مفيد" (click)="rate(index, true)">👍</button>
+            <button type="button" aria-label="مش مفيد" (click)="rate(index, false)">👎</button>
+          }
+        </div>
       }
     }
   </section>
