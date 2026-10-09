@@ -114,6 +114,7 @@ STAFF_EMAIL=… STAFF_PASSWORD=… npm run serve:ssr:ai-helpdesk   # http://loca
 | `OLLAMA_EMBED_MODEL` | `granite-embedding:278m` | Embeddings for search |
 | `KNOWLEDGE_DIR` | `./knowledge` | Markdown knowledge files |
 | `DB_PATH` | `./data/helpdesk.db` | SQLite database (git-ignored) |
+| `ALLOWED_HOSTS` | `localhost,127.0.0.1` | Host names the production server answers to (host-header protection) |
 | `STAFF_EMAIL` / `STAFF_PASSWORD` / `STAFF_NAME` | — | Creates the first staff account if it does not exist |
 
 **Editing the knowledge:**

@@ -25,7 +25,15 @@ import { createOllamaTopicGate } from './server/topic-gate';
 const browserDistFolder = join(import.meta.dirname, '../browser');
 
 const app = express();
-const angularApp = new AngularNodeAppEngine();
+/**
+ * Host names the server answers to (protection against host-header SSRF). Without this,
+ * the production server rejected even localhost. Override with ALLOWED_HOSTS=a.com,b.com.
+ */
+const allowedHosts = (process.env['ALLOWED_HOSTS'] ?? 'localhost,127.0.0.1')
+  .split(',')
+  .map((host) => host.trim())
+  .filter(Boolean);
+const angularApp = new AngularNodeAppEngine({ allowedHosts });
 
 const ollamaConfig = {
   url: process.env['OLLAMA_URL'] ?? DEFAULT_OLLAMA_URL,
