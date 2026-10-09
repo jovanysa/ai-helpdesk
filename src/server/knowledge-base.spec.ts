@@ -116,4 +116,13 @@ describe('KnowledgeBase', () => {
     await expect(failing.warmUp()).resolves.toBeUndefined();
     expect(console.warn).toHaveBeenCalledWith('[knowledge] warm-up failed:', 'down');
   });
+
+  it('refresh picks up a new section right away', async () => {
+    const chunks = [donate];
+    const kb = new KnowledgeBase(db, fakeEmbed().embed, () => chunks, 'm');
+    await kb.search('x');
+    chunks.push(hours);
+    await kb.refresh();
+    expect((await kb.search('مواعيد', 1)).map((r) => r.title)).toEqual(['المواعيد']);
+  });
 });

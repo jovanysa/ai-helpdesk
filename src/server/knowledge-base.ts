@@ -53,6 +53,12 @@ export class KnowledgeBase {
       .slice(0, k);
   }
 
+  /** Re-reads the knowledge files now (only new or changed sections are embedded). */
+  async refresh(): Promise<void> {
+    this.indexing = null;
+    await this.ensureIndexed();
+  }
+
   /** Builds the index and loads the embedding model at startup, so the first customer does not wait. */
   async warmUp(): Promise<void> {
     try {

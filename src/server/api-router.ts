@@ -6,10 +6,10 @@ import { ApiDeps, createApiRoutes, runRoute } from './api-routes';
 export function createApiRouter(deps: ApiDeps): Router {
   const router = Router();
   for (const route of createApiRoutes(deps)) {
-    router[route.method](route.path, (req, res) =>
+    router[route.method](route.path, async (req, res) =>
       send(
         res,
-        runRoute(route, deps.sessions, {
+        await runRoute(route, deps.sessions, {
           params: req.params,
           query: req.query as Record<string, unknown>,
           body: req.body,

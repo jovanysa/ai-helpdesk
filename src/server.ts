@@ -73,7 +73,7 @@ app.use(
     isAnswerable: createOllamaAnswerabilityCheck(ollamaConfig),
     gaps: gapLog,
   }),
-  createApiRouter({ staff, sessions, tickets, classifier, gaps }),
+  createApiRouter({ staff, sessions, tickets, classifier, gaps, knowledge, knowledgeDir }),
   apiErrorHandler,
 );
 

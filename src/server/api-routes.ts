@@ -6,6 +6,8 @@ import { TicketClassifier } from './ticket-classifier';
 import { createTicketHandlers } from './ticket-handlers';
 import { TicketRepository } from './ticket-repository';
 import { GAP_REASONS, UnansweredRepository } from './unanswered-questions';
+import { KnowledgeBase } from './knowledge-base';
+import { appendStaffAnswer, validateStaffAnswer } from './staff-answers';
 import { isOneOf } from './ticket-types';
 
 export interface ApiDeps {
@@ -14,6 +16,8 @@ export interface ApiDeps {
   tickets: TicketRepository;
   classifier: TicketClassifier;
   gaps: UnansweredRepository;
+  knowledge: Pick<KnowledgeBase, 'refresh'>;
+  knowledgeDir: string;
 }
 
 /** The parts of an HTTP request the handlers need, without Express types. */
@@ -29,11 +33,11 @@ export interface ApiRoute {
   path: string;
   /** Staff-only routes return 401 unless the request carries a valid session. */
   staffOnly: boolean;
-  handle(req: ApiRequest): ApiResult;
+  handle(req: ApiRequest): ApiResult | Promise<ApiResult>;
 }
 
 /** Every API route in one table, so which routes are public is visible (and tested) in one place. */
-export function createApiRoutes({ staff, sessions, tickets, classifier, gaps }: ApiDeps): ApiRoute[] {
+export function createApiRoutes({ staff, sessions, tickets, classifier, gaps, knowledge, knowledgeDir }: ApiDeps): ApiRoute[] {
   const auth = createAuthHandlers(staff, sessions);
   const ticketHandlers = createTicketHandlers(tickets, classifier);
   const token = (req: ApiRequest) => readSessionToken(req.cookie);
@@ -59,11 +63,17 @@ export function createApiRoutes({ staff, sessions, tickets, classifier, gaps }: 
     },
     { method: 'get', path: '/gaps', staffOnly: true, handle: (req) => listGaps(gaps, req.query) },
     { method: 'post', path: '/gaps/resolve', staffOnly: true, handle: (req) => resolveGap(gaps, req.body) },
+    {
+      method: 'post',
+      path: '/gaps/answer',
+      staffOnly: true,
+      handle: (req) => answerGap(gaps, knowledge, knowledgeDir, req.body),
+    },
   ];
 }
 
 /** Runs a route, refusing staff-only routes without a valid session. */
-export function runRoute(route: ApiRoute, sessions: SessionStore, req: ApiRequest): ApiResult {
+export function runRoute(route: ApiRoute, sessions: SessionStore, req: ApiRequest): ApiResult | Promise<ApiResult> {
   if (route.staffOnly) {
     const token = readSessionToken(req.cookie);
     if (!token || !sessions.findUser(token)) return { status: 401, body: { error: 'login required' } };
@@ -81,6 +91,28 @@ function resolveGap(gaps: UnansweredRepository, body: unknown): ApiResult {
   const { reason, key } = (typeof body === 'object' && body !== null ? body : {}) as Record<string, unknown>;
   if (!isOneOf(GAP_REASONS, reason) || typeof key !== 'string' || !key.trim()) {
     return { status: 400, body: { error: 'reason and key are required' } };
+  }
+  return { status: 200, body: { resolved: gaps.resolve(reason, key) } };
+}
+
+/** Writes the answer into the knowledge, re-indexes so the chat uses it at once, then closes the question. */
+async function answerGap(
+  gaps: UnansweredRepository,
+  knowledge: Pick<KnowledgeBase, 'refresh'>,
+  knowledgeDir: string,
+  body: unknown,
+): Promise<ApiResult> {
+  const parsed = validateStaffAnswer(body);
+  if (!parsed.ok) return { status: 400, body: { error: parsed.error } };
+  const { reason, key, title, answer } = parsed.value;
+
+  appendStaffAnswer(knowledgeDir, title, answer);
+  try {
+    await knowledge.refresh();
+  } catch (error) {
+    // The answer is saved in the file; the next successful index picks it up.
+    console.error('[gaps] knowledge refresh failed:', error instanceof Error ? error.message : error);
+    return { status: 503, body: { error: 'answer saved, but the knowledge could not be refreshed' } };
   }
   return { status: 200, body: { resolved: gaps.resolve(reason, key) } };
 }
