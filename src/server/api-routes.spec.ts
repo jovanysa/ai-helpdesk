@@ -6,6 +6,7 @@ import { StaffRepository } from './staff-repository';
 import { TicketClassifier } from './ticket-classifier';
 import { TicketRepository } from './ticket-repository';
 import { UnansweredRepository } from './unanswered-questions';
+import { FeedbackRepository } from './feedback';
 import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -22,7 +23,8 @@ describe('API routes', () => {
     const gaps = new UnansweredRepository(db);
     const knowledgeDir = mkdtempSync(join(tmpdir(), 'kb-'));
     const knowledge = { refresh: vi.fn(async () => undefined) };
-    const routes = createApiRoutes({ staff, sessions, tickets, classifier, gaps, knowledge, knowledgeDir });
+    const feedback = new FeedbackRepository(db, gaps);
+    const routes = createApiRoutes({ staff, sessions, tickets, classifier, gaps, knowledge, knowledgeDir, feedback });
     const request = (cookie?: string, overrides: Partial<ApiRequest> = {}): ApiRequest => ({
       params: { id: '1' },
       query: {},
@@ -30,13 +32,13 @@ describe('API routes', () => {
       cookie,
       ...overrides,
     });
-    return { routes, sessions, tickets, gaps, knowledge, knowledgeDir, user, request };
+    return { routes, sessions, tickets, gaps, knowledge, knowledgeDir, feedback, user, request };
   }
 
   it('keeps only the customer and login endpoints public', async () => {
     const { routes } = setup();
     const publicRoutes = routes.filter((r) => !r.staffOnly).map((r) => `${r.method.toUpperCase()} ${r.path}`);
-    expect(publicRoutes.sort()).toEqual(['GET /auth/me', 'POST /auth/login', 'POST /auth/logout', 'POST /tickets']);
+    expect(publicRoutes.sort()).toEqual(['GET /auth/me', 'POST /auth/login', 'POST /auth/logout', 'POST /feedback', 'POST /tickets']);
   });
 
   it('refuses every staff route without a valid session and never runs its handler', async () => {
@@ -124,6 +126,16 @@ describe('API routes', () => {
       }));
       expect(result.status).toBe(503);
       expect(gaps.listOpen('no_answer')).toHaveLength(1);
+    });
+
+    it('accepts customer feedback publicly and shows staff the summary', async () => {
+      const { sessions, cookie, route, request, gaps } = staffRequest();
+      const give = (body: unknown) => runRoute(route('post', '/feedback'), sessions, request(undefined, { body }));
+      expect(await give({ question: 'ازاي اتبرع؟', reply: 'رد', helpful: false })).toEqual({ status: 204 });
+      expect(await give({ question: 'ازاي اتبرع؟', reply: 'رد', helpful: true })).toEqual({ status: 204 });
+      expect((await give({ helpful: 'x' })).status).toBe(400);
+      expect(gaps.listOpen('disliked')).toHaveLength(1);
+      expect(await runRoute(route('get', '/feedback/summary'), sessions, request(cookie))).toEqual({ status: 200, body: { helpful: 1, total: 2 } });
     });
   });
 });

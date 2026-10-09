@@ -1,6 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite';
 
-export const GAP_REASONS = ['no_answer', 'off_topic'] as const;
+export const GAP_REASONS = ['no_answer', 'off_topic', 'disliked'] as const;
 export type GapReason = (typeof GAP_REASONS)[number];
 
 export interface GapGroup {

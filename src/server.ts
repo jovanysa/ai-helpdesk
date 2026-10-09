@@ -20,6 +20,7 @@ import { TicketRepository } from './server/ticket-repository';
 import { createOllamaAnswerabilityCheck } from './server/answerability';
 import { GapLog } from './server/gap-recorder';
 import { UnansweredRepository } from './server/unanswered-questions';
+import { FeedbackRepository } from './server/feedback';
 import { createOllamaTopicGate } from './server/topic-gate';
 
 const browserDistFolder = join(import.meta.dirname, '../browser');
@@ -59,6 +60,7 @@ const knowledge = new KnowledgeBase(
 // Questions the chat could not answer, for staff to fill in the knowledge.
 const gaps = new UnansweredRepository(db);
 const gapLog = new GapLog(gaps);
+const feedback = new FeedbackRepository(db, gaps);
 gaps.pruneResolved(90);
 sessions.pruneExpired();
 
@@ -82,7 +84,7 @@ app.use(
     isAnswerable: createOllamaAnswerabilityCheck(ollamaConfig),
     gaps: gapLog,
   }),
-  createApiRouter({ staff, sessions, tickets, classifier, gaps, knowledge, knowledgeDir }),
+  createApiRouter({ staff, sessions, tickets, classifier, gaps, knowledge, knowledgeDir, feedback }),
   apiErrorHandler,
 );
 

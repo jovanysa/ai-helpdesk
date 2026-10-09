@@ -51,12 +51,40 @@ CREATE TABLE IF NOT EXISTS unanswered_questions (
   question TEXT NOT NULL,
   question_key TEXT NOT NULL,
   reply TEXT NOT NULL,
-  reason TEXT NOT NULL CHECK (reason IN ('no_answer','off_topic')),
+  reason TEXT NOT NULL CHECK (reason IN ('no_answer','off_topic','disliked')),
   created_at TEXT NOT NULL,
   resolved_at TEXT
 );
 CREATE INDEX IF NOT EXISTS unanswered_open ON unanswered_questions (reason, resolved_at, question_key);
+
+CREATE TABLE IF NOT EXISTS reply_feedback (
+  id INTEGER PRIMARY KEY,
+  helpful INTEGER NOT NULL CHECK (helpful IN (0, 1)),
+  created_at TEXT NOT NULL
+);
 `;
+
+/** Bump when an existing table must change shape; each step runs once per database file. */
+const SCHEMA_VERSION = 1;
+
+function migrate(db: DatabaseSync): void {
+  const version = Number(db.prepare('PRAGMA user_version').get()?.['user_version'] ?? 0);
+  if (version < 1) {
+    // v1: "disliked" joined the allowed reasons. SQLite cannot change a CHECK constraint
+    // in place, so a table made by an older version is rebuilt with its rows copied over.
+    const table = db.prepare("SELECT sql FROM sqlite_master WHERE name = 'unanswered_questions'").get();
+    if (!String(table?.['sql'] ?? '').includes('disliked')) {
+      db.exec(`BEGIN;
+        ALTER TABLE unanswered_questions RENAME TO unanswered_questions_v0;
+        DROP INDEX IF EXISTS unanswered_open;`);
+      db.exec(SCHEMA);
+      db.exec(`INSERT INTO unanswered_questions SELECT * FROM unanswered_questions_v0;
+        DROP TABLE unanswered_questions_v0;
+        COMMIT;`);
+    }
+  }
+  db.exec(`PRAGMA user_version = ${SCHEMA_VERSION};`);
+}
 
 /** Opens (and creates if needed) the helpdesk database with its schema. */
 export function openDatabase(path: string): DatabaseSync {
@@ -70,5 +98,6 @@ export function openDatabase(path: string): DatabaseSync {
   // WAL lets reads continue while a write is in progress; it needs a real file.
   if (!inMemory) db.exec('PRAGMA journal_mode = WAL;');
   db.exec(SCHEMA);
+  migrate(db);
   return db;
 }

@@ -8,6 +8,7 @@ import { TicketRepository } from './ticket-repository';
 import { GAP_REASONS, UnansweredRepository } from './unanswered-questions';
 import { KnowledgeBase } from './knowledge-base';
 import { appendStaffAnswer, validateStaffAnswer } from './staff-answers';
+import { FeedbackRepository, validateFeedback } from './feedback';
 import { isOneOf } from './ticket-types';
 
 export interface ApiDeps {
@@ -18,6 +19,7 @@ export interface ApiDeps {
   gaps: UnansweredRepository;
   knowledge: Pick<KnowledgeBase, 'refresh'>;
   knowledgeDir: string;
+  feedback: FeedbackRepository;
 }
 
 /** The parts of an HTTP request the handlers need, without Express types. */
@@ -37,7 +39,16 @@ export interface ApiRoute {
 }
 
 /** Every API route in one table, so which routes are public is visible (and tested) in one place. */
-export function createApiRoutes({ staff, sessions, tickets, classifier, gaps, knowledge, knowledgeDir }: ApiDeps): ApiRoute[] {
+export function createApiRoutes({
+  staff,
+  sessions,
+  tickets,
+  classifier,
+  gaps,
+  knowledge,
+  knowledgeDir,
+  feedback,
+}: ApiDeps): ApiRoute[] {
   const auth = createAuthHandlers(staff, sessions);
   const ticketHandlers = createTicketHandlers(tickets, classifier);
   const token = (req: ApiRequest) => readSessionToken(req.cookie);
@@ -47,6 +58,8 @@ export function createApiRoutes({ staff, sessions, tickets, classifier, gaps, kn
     { method: 'post', path: '/auth/logout', staffOnly: false, handle: (req) => auth.logout(token(req)) },
     { method: 'get', path: '/auth/me', staffOnly: false, handle: (req) => auth.me(token(req)) },
     { method: 'post', path: '/tickets', staffOnly: false, handle: (req) => ticketHandlers.create(req.body) },
+    { method: 'post', path: '/feedback', staffOnly: false, handle: (req) => giveFeedback(feedback, req.body) },
+    { method: 'get', path: '/feedback/summary', staffOnly: true, handle: () => ({ status: 200, body: feedback.summary(30) }) },
     { method: 'get', path: '/tickets', staffOnly: true, handle: (req) => ticketHandlers.list(req.query) },
     { method: 'get', path: '/tickets/:id', staffOnly: true, handle: (req) => ticketHandlers.get(req.params['id']) },
     {
@@ -115,4 +128,12 @@ async function answerGap(
     return { status: 503, body: { error: 'answer saved, but the knowledge could not be refreshed' } };
   }
   return { status: 200, body: { resolved: gaps.resolve(reason, key) } };
+}
+
+/** Public: a customer rates a reply. Stored texts are capped by the questions repository. */
+function giveFeedback(feedback: FeedbackRepository, body: unknown): ApiResult {
+  const parsed = validateFeedback(body);
+  if (!parsed.ok) return { status: 400, body: { error: parsed.error } };
+  feedback.record(parsed.value);
+  return { status: 204 };
 }
