@@ -1,5 +1,5 @@
 import { openDatabase } from './db';
-import { UnansweredRepository, normalizeQuestion } from './unanswered-questions';
+import { UnansweredRepository, isSmallTalk, normalizeQuestion } from './unanswered-questions';
 
 describe('normalizeQuestion', () => {
   it.each([
@@ -14,6 +14,18 @@ describe('normalizeQuestion', () => {
   ])('%s → %s', (input, expected) => {
     expect(normalizeQuestion(input)).toBe(expected);
   });
+});
+
+describe('isSmallTalk', () => {
+  it.each(['السلام عليكم', 'شكرا', 'شكرا جدا', 'شكرًا ليكم!', 'متشكر', 'تمام', 'مع السلامة', 'أهلا', 'thanks', 'Thank you so much!', 'ok bye', 'hi', 'Hello!', '👍', '???', '؟؟'])(
+    '%s is small talk',
+    (text) => expect(isSmallTalk(text)).toBe(true),
+  );
+
+  it.each(['شكرا، ممكن اتبرع بالفيزا؟', 'hi, do you have a branch in Alexandria?', 'السلام عليكم عايز اتطوع', 'تمام ازاي اقدم؟'])(
+    '%s is a real question',
+    (text) => expect(isSmallTalk(text)).toBe(false),
+  );
 });
 
 describe('UnansweredRepository', () => {
@@ -78,5 +90,28 @@ describe('UnansweredRepository', () => {
     repo.record('x', 'r', 'off_topic');
     expect(repo.resolve('off_topic', 'x')).toBe(1);
     expect(repo.listOpen('no_answer')).toHaveLength(1);
+  });
+
+  it('does not record messages with no letters or digits', () => {
+    repo.record('👍', 'r', 'no_answer');
+    repo.record('؟؟', 'r', 'off_topic');
+    expect(repo.listOpen('no_answer')).toEqual([]);
+    expect(repo.listOpen('off_topic')).toEqual([]);
+  });
+
+  it('stores at most 500 characters of the question and the reply', () => {
+    repo.record('س'.repeat(2000), 'ر'.repeat(2000), 'no_answer');
+    const [group] = repo.listOpen('no_answer');
+    expect(group.question).toHaveLength(500);
+    expect(group.lastReply).toHaveLength(500);
+  });
+
+  it('forgets handled questions after 90 days, keeping open ones', () => {
+    repo.record('قديمة', 'r', 'no_answer');
+    repo.resolve('no_answer', 'قديمه');
+    repo.record('مفتوحة', 'r', 'no_answer');
+    clock = new Date(clock.getTime() + 91 * 24 * 60 * 60 * 1000);
+    expect(repo.pruneResolved(90)).toBe(1);
+    expect(repo.listOpen('no_answer').map((g) => g.question)).toEqual(['مفتوحة']);
   });
 });

@@ -336,4 +336,26 @@ describe('startChatStream', () => {
     await collect(start.events);
     expect(isAnswerable).not.toHaveBeenCalled();
   });
+
+  it('answers a thank-you after an unanswered question without checking or recording it', async () => {
+    const gaps = fakeGaps();
+    const isAnswerable = vi.fn(async () => false);
+    const start = await run(
+      fakeProvider(['العفو!']),
+      fakeKnowledge(),
+      allowAll,
+      [
+        { role: 'user', content: 'بتدوا لبس مدرسة؟' },
+        { role: 'assistant', content: REFUSAL_AR },
+        { role: 'user', content: 'شكرا' },
+      ],
+      new AbortController().signal,
+      gaps,
+      isAnswerable,
+    );
+    if (!start.ok) throw new Error('expected ok');
+    expect(await collect(start.events)).toContain(toSse({ type: 'token', text: 'العفو!' }));
+    expect(isAnswerable).not.toHaveBeenCalled();
+    expect(gaps.recordNoAnswer).not.toHaveBeenCalled();
+  });
 });

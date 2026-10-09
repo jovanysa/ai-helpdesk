@@ -30,6 +30,27 @@ export function normalizeQuestion(text: string): string {
     .trim();
 }
 
+// Words that make up greetings, thanks and goodbyes (after normalizeQuestion).
+const SMALL_TALK_WORDS = new Set(
+  (
+    'السلام عليكم وعليكم سلام اهلا اهلين مرحبا صباح مساء الخير النور شكرا متشكر متشكره متشكرين الف ' +
+    'تسلم تسلمي تسلموا جزاكم الله خيرا جدا ليكم ليك يا جماعه كتير تمام ماشي اوك مع السلامه باي ' +
+    'hi hello hey thanks thank you so much very a lot thx ok okay bye goodbye good morning evening'
+  ).split(' '),
+);
+
+/**
+ * Greetings, thanks and emoji-only messages need no knowledge. Decided in code:
+ * checked together with an unanswered previous question, the model called "thanks"
+ * unanswerable too.
+ */
+export function isSmallTalk(text: string): boolean {
+  const words = normalizeQuestion(text).split(' ').filter(Boolean);
+  return words.every((word) => SMALL_TALK_WORDS.has(word));
+}
+
+const MAX_STORED_LENGTH = 500;
+
 interface GroupRow {
   key: string;
   count: number;
@@ -44,12 +65,21 @@ export class UnansweredRepository {
     private readonly now: () => Date = () => new Date(),
   ) {}
 
+  /** Skips messages with no letters or digits; keeps at most 500 characters of each text. */
   record(question: string, reply: string, reason: GapReason): void {
+    const key = normalizeQuestion(question);
+    if (!key) return;
     this.db
       .prepare(
         'INSERT INTO unanswered_questions (question, question_key, reply, reason, created_at) VALUES (?, ?, ?, ?, ?)',
       )
-      .run(question, normalizeQuestion(question), reply, reason, this.now().toISOString());
+      .run(
+        question.slice(0, MAX_STORED_LENGTH),
+        key.slice(0, MAX_STORED_LENGTH),
+        reply.slice(0, MAX_STORED_LENGTH),
+        reason,
+        this.now().toISOString(),
+      );
   }
 
   /** Open questions grouped by normalized text, most asked first. */
@@ -83,6 +113,15 @@ export class UnansweredRepository {
         'UPDATE unanswered_questions SET resolved_at = ? WHERE reason = ? AND question_key = ? AND resolved_at IS NULL',
       )
       .run(this.now().toISOString(), reason, key);
+    return Number(result.changes);
+  }
+
+  /** Customers may write personal details; handled questions are not kept forever. */
+  pruneResolved(olderThanDays: number): number {
+    const cutoff = new Date(this.now().getTime() - olderThanDays * 24 * 60 * 60 * 1000).toISOString();
+    const result = this.db
+      .prepare('DELETE FROM unanswered_questions WHERE resolved_at IS NOT NULL AND resolved_at < ?')
+      .run(cutoff);
     return Number(result.changes);
   }
 }

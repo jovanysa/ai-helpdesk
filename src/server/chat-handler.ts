@@ -4,6 +4,7 @@ import { REFUSALS, buildSystemPrompt, detectLanguage } from './charity-prompt';
 import { GapRecorder } from './gap-recorder';
 import { KnowledgeSearch, KnowledgeSource } from './knowledge-base';
 import { TopicGate } from './topic-gate';
+import { isSmallTalk } from './unanswered-questions';
 
 export const MAX_MESSAGES = 10;
 export const MAX_USER_MESSAGE_LENGTH = 2000;
@@ -104,7 +105,8 @@ export async function startChatStream(
 
   // The model is asked to answer only when the sources hold the answer; otherwise the
   // code says "I don't know" and records the question for staff to fill in.
-  if (!(await checkAnswerable(isAnswerable, query, sources))) {
+  // Greetings and thanks need no knowledge, whatever the previous question was.
+  if (!isSmallTalk(current) && !(await checkAnswerable(isAnswerable, query, sources))) {
     gaps.recordNoAnswer(current, REFUSALS[language]);
     return { ok: true, events: refusalEvents(REFUSALS[language]) };
   }
