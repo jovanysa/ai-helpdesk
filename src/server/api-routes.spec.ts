@@ -137,5 +137,17 @@ describe('API routes', () => {
       expect(gaps.listOpen('disliked')).toHaveLength(1);
       expect(await runRoute(route('get', '/feedback/summary'), sessions, request(cookie))).toEqual({ status: 200, body: { helpful: 1, total: 2 } });
     });
+
+    it('does not add the same answer twice when the question was already handled', async () => {
+      const { gaps, knowledgeDir, sessions, cookie, route, request } = staffRequest();
+      gaps.record('فيه ركنة؟', 'مش عارف', 'no_answer');
+      const body = { reason: 'no_answer', key: 'فيه ركنه', title: 'فيه ركنة؟', answer: 'أيوه، فيه جراج.' };
+      expect((await runRoute(route('post', '/gaps/answer'), sessions, request(cookie, { body }))).status).toBe(200);
+      expect(await runRoute(route('post', '/gaps/answer'), sessions, request(cookie, { body }))).toEqual({
+        status: 409,
+        body: { error: 'this question was already handled' },
+      });
+      expect(readFileSync(join(knowledgeDir, 'staff-answers.md'), 'utf8').match(/## فيه ركنة؟/g)).toHaveLength(1);
+    });
   });
 });

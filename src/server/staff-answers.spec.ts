@@ -15,8 +15,10 @@ describe('validateStaffAnswer', () => {
   });
 
   it('removes characters that would break the markdown structure', () => {
-    const result = validateStaffAnswer({ ...valid, title: '## فيه\nركنة؟', answer: 'سطر أول\n## مش عنوان\nسطر تالت' });
-    expect(result).toMatchObject({ ok: true, value: { title: 'فيه ركنة؟', answer: 'سطر أول\nمش عنوان\nسطر تالت' } });
+    const result = validateStaffAnswer({ ...valid, title: '## فيه\nركنة؟', answer: 'سطر أول\n## مش عنوان\n#1 أولًا' });
+    expect(result).toMatchObject({ ok: true, value: { title: 'فيه ركنة؟', answer: 'سطر أول\n\\## مش عنوان\n\\#1 أولًا' } });
+    if (!result.ok) throw new Error('expected ok');
+    expect(parseKnowledgeFile('x.md', `## t\n${result.value.answer}`)).toHaveLength(1);
   });
 
   it.each([

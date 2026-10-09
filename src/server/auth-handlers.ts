@@ -34,6 +34,8 @@ export function createAuthHandlers(staff: StaffRepository, sessions: SessionStor
       if (!user) return { status: 401, body: { error: 'invalid credentials' } };
 
       if (currentToken) sessions.delete(currentToken);
+      // Expired sessions would otherwise pile up while the server keeps running.
+      sessions.pruneExpired();
       const { token } = sessions.create(user.id);
       return { status: 200, body: user, setCookie: sessionCookie(token, SESSION_TTL_MS / 1000) };
     },

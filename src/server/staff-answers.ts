@@ -19,13 +19,14 @@ export function validateStaffAnswer(body: unknown): Validation<StaffAnswer> {
   if (!isOneOf(GAP_REASONS, reason) || typeof key !== 'string' || !key.trim()) {
     return { ok: false, error: 'reason and key are required' };
   }
-  // A title is one line, and no line may start a new "#" heading: either would split the section.
+  // A title is one line, and no answer line may start a "#" heading: either would split the
+  // section. A leading "#" in the answer is escaped (\#), so "#1 أولًا" keeps its text.
   const cleanTitle = typeof title === 'string' ? title.replace(/[#\r\n]+/g, ' ').replace(/\s+/g, ' ').trim() : '';
   const cleanAnswer =
     typeof answer === 'string'
       ? answer
           .split(/\r?\n/)
-          .map((line) => line.replace(/^\s*#+\s*/, ''))
+          .map((line) => line.replace(/^(\s*)#/, '$1\\#'))
           .join('\n')
           .trim()
       : '';

@@ -57,4 +57,11 @@ describe('auth handlers', () => {
     expect(auth.me(first).status).toBe(401);
     expect(auth.me(second).status).toBe(200);
   });
+
+  it('clears expired sessions when someone logs in', () => {
+    const prune = vi.spyOn(SessionStore.prototype, 'pruneExpired');
+    auth.login({ email: 'admin@x.example', password: 'pw123456' });
+    expect(prune).toHaveBeenCalled();
+  });
 });
+

@@ -118,6 +118,10 @@ async function answerGap(
   const parsed = validateStaffAnswer(body);
   if (!parsed.ok) return { status: 400, body: { error: parsed.error } };
   const { reason, key, title, answer } = parsed.value;
+  // Two staff on stale pages would otherwise write the same answer twice.
+  if (!gaps.listOpen(reason).some((group) => group.key === key)) {
+    return { status: 409, body: { error: 'this question was already handled' } };
+  }
 
   appendStaffAnswer(knowledgeDir, title, answer);
   try {
