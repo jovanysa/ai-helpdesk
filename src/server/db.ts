@@ -45,6 +45,17 @@ CREATE TABLE IF NOT EXISTS knowledge_chunks (
   content_hash TEXT NOT NULL UNIQUE,
   embedding BLOB NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS unanswered_questions (
+  id INTEGER PRIMARY KEY,
+  question TEXT NOT NULL,
+  question_key TEXT NOT NULL,
+  reply TEXT NOT NULL,
+  reason TEXT NOT NULL CHECK (reason IN ('no_answer','off_topic')),
+  created_at TEXT NOT NULL,
+  resolved_at TEXT
+);
+CREATE INDEX IF NOT EXISTS unanswered_open ON unanswered_questions (reason, resolved_at, question_key);
 `;
 
 /** Opens (and creates if needed) the helpdesk database with its schema. */
