@@ -5,6 +5,7 @@ import { GapRecorder } from './gap-recorder';
 import { KnowledgeSearch, KnowledgeSource } from './knowledge-base';
 import { TopicGate } from './topic-gate';
 import { isSmallTalk } from './unanswered-questions';
+import { STAFF_ANSWERS_FILE } from './staff-answers';
 
 export const MAX_MESSAGES = 10;
 export const MAX_USER_MESSAGE_LENGTH = 2000;
@@ -100,11 +101,19 @@ export async function startChatStream(
   } catch (error) {
     return { ok: false, error };
   }
+  // The customer left while we were checking: nothing more to do.
+  if (signal.aborted) return { ok: false, error: new Error('aborted') };
 
   // A knowledge section almost identical to the question (e.g. a staff answer titled with a
   // customer's own words) outweighs the topic gate: otherwise a wrong "off-topic" could never
   // be fixed by adding knowledge. The answerability check still decides afterwards.
-  if (!onTopic && (sources[0]?.score ?? 0) >= CLOSE_MATCH_SCORE) onTopic = true;
+  // Only a staff answer counts, and only when the search used the current message alone:
+  // a short off-topic follow-up searched together with the question before it can score
+  // high against an ordinary section.
+  const top = sources[0];
+  if (!onTopic && query === current && top?.file === STAFF_ANSWERS_FILE && top.score >= CLOSE_MATCH_SCORE) {
+    onTopic = true;
+  }
 
   // Off-topic: the code answers with the fixed sentence; the model is not asked at all.
   if (!onTopic) {
@@ -115,9 +124,14 @@ export async function startChatStream(
   // The model is asked to answer only when the sources hold the answer; otherwise the
   // code says "I don't know" and records the question for staff to fill in.
   // Greetings and thanks need no knowledge, whatever the previous question was.
-  if (!isSmallTalk(current) && !(await checkAnswerable(isAnswerable, query, sources, signal))) {
-    gaps.recordNoAnswer(current, REFUSALS[language]);
-    return { ok: true, events: refusalEvents(REFUSALS[language]) };
+  if (!isSmallTalk(current)) {
+    const answerable = await checkAnswerable(isAnswerable, query, sources, signal);
+    if (signal.aborted) return { ok: false, error: new Error('aborted') };
+    if (answerable !== true) {
+      // A failed check (e.g. Ollama busy with another customer) is not a knowledge gap.
+      if (answerable === false) gaps.recordNoAnswer(current, REFUSALS[language]);
+      return { ok: true, events: refusalEvents(REFUSALS[language]) };
+    }
   }
 
   const messages: AiMessage[] = [{ role: 'system', content: buildSystemPrompt(sources, language) }, ...turns];
@@ -143,23 +157,30 @@ async function checkTopic(
   try {
     return await isAboutFoundation(current, previous, signal);
   } catch (error) {
-    console.error('[chat] topic check failed:', error instanceof Error ? error.message : error);
+    if (!signal.aborted) {
+      console.error('[chat] topic check failed:', error instanceof Error ? error.message : error);
+    }
     return true;
   }
 }
 
-/** If the check itself fails, answer anyway: the prompt still forbids guessing. */
+/**
+ * Returns 'failed' when the check could not run. Unlike the topic gate this fails
+ * closed: it is the step that stops invented answers, so without it we refuse.
+ */
 async function checkAnswerable(
   isAnswerable: AnswerabilityCheck,
   query: string,
   sources: KnowledgeSource[],
   signal: AbortSignal,
-): Promise<boolean> {
+): Promise<boolean | 'failed'> {
   try {
     return await isAnswerable(query, sources, signal);
   } catch (error) {
-    console.error('[chat] answerability check failed:', error instanceof Error ? error.message : error);
-    return true;
+    if (!signal.aborted) {
+      console.error('[chat] answerability check failed:', error instanceof Error ? error.message : error);
+    }
+    return 'failed';
   }
 }
 

@@ -33,8 +33,9 @@ const ANSWERABILITY_SCHEMA = {
 
 const MIN_QUOTE_LENGTH = 8;
 
-// It fails open, so waiting longer than this only delays the customer.
-const CHECK_TIMEOUT_MS = 10_000;
+// Ollama serves one request at a time here, so this may wait behind another customer's
+// reply. The check fails closed (refuses), so give it room before giving up.
+const CHECK_TIMEOUT_MS = 20_000;
 
 /**
  * Decides before answering whether the sources hold the answer. The 3B model kept

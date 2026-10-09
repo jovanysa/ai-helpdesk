@@ -311,21 +311,25 @@ describe('startChatStream', () => {
     expect(gaps.recordOffTopic).not.toHaveBeenCalled();
   });
 
-  it('still answers when the answerability check itself fails', async () => {
+  it('refuses, without recording, when the answerability check itself fails', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const seen: AiMessage[][] = [];
+    const gaps = fakeGaps();
     const start = await run(
-      fakeProvider(['أهلًا']),
+      fakeProvider(['أهلًا'], seen),
       fakeKnowledge(),
       allowAll,
       [userTurn],
       new AbortController().signal,
-      fakeGaps(),
+      gaps,
       async () => {
         throw new Error('timeout');
       },
     );
     if (!start.ok) throw new Error('expected ok');
-    expect(await collect(start.events)).toContain(toSse({ type: 'token', text: 'أهلًا' }));
+    expect(await collect(start.events)).toContain(toSse({ type: 'token', text: REFUSAL_AR }));
+    expect(seen).toEqual([]);
+    expect(gaps.recordNoAnswer).not.toHaveBeenCalled();
     expect(console.error).toHaveBeenCalledWith('[chat] answerability check failed:', 'timeout');
   });
 
@@ -378,4 +382,49 @@ describe('startChatStream', () => {
     expect(await collect(start.events)).toContain(toSse({ type: 'token', text: REFUSAL_EN }));
     expect(gaps.recordOffTopic).toHaveBeenCalled();
   });
+
+  it('does not let a short off-topic follow-up borrow the previous question to pass the gate', async () => {
+    const staffAnswer: KnowledgeSource = { file: 'staff-answers.md', title: 'مواعيد', content: 'من 9 لـ 5', score: 0.81 };
+    const gaps = fakeGaps();
+    const start = await run(
+      fakeProvider(['Python is…']),
+      fakeKnowledge([staffAnswer]),
+      async () => false,
+      [
+        { role: 'user', content: 'What are your opening hours on Friday?' },
+        { role: 'assistant', content: 'Closed.' },
+        { role: 'user', content: 'and python?' },
+      ],
+      new AbortController().signal,
+      gaps,
+    );
+    if (!start.ok) throw new Error('expected ok');
+    expect(await collect(start.events)).toContain(toSse({ type: 'token', text: REFUSAL_EN }));
+    expect(gaps.recordOffTopic).toHaveBeenCalled();
+  });
+
+  it('only lets a staff answer, not any section, outweigh the topic gate', async () => {
+    const ordinary: KnowledgeSource = { file: 'about.md', title: 'المواعيد', content: 'الجمعة: مقفول.', score: 0.85 };
+    const start = await run(fakeProvider(['x']), fakeKnowledge([ordinary]), async () => false, [userTurn], new AbortController().signal);
+    if (!start.ok) throw new Error('expected ok');
+    expect(await collect(start.events)).toContain(toSse({ type: 'token', text: REFUSAL_AR }));
+  });
+
+  it('stops quietly when the customer left during the checks', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const controller = new AbortController();
+    const start = await run(
+      fakeProvider(['x']),
+      fakeKnowledge(),
+      async () => {
+        controller.abort();
+        throw new Error('aborted');
+      },
+      [userTurn],
+      controller.signal,
+    );
+    expect(start.ok).toBe(false);
+    expect(error).not.toHaveBeenCalled();
+  });
 });
+
