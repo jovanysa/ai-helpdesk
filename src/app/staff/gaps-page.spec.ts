@@ -56,4 +56,33 @@ describe('GapsPage', () => {
     expect(element.querySelector('.gap')).toBeNull();
     expect(element.textContent).toContain('مفيش أسئلة مفتوحة');
   });
+
+  it('ignores a slow answer for the tab the staff member already left', async () => {
+    const { fixture, http, element } = await setup();
+    http.expectOne((r) => r.url === '/api/gaps').flush([]);
+    const tabs = [...element.querySelectorAll<HTMLButtonElement>('[role=tab]')];
+
+    tabs[1].click();
+    const offTopic = http.expectOne((r) => r.params.get('reason') === 'off_topic');
+    tabs[0].click();
+    const noAnswer = http.expectOne((r) => r.params.get('reason') === 'no_answer');
+
+    expect(offTopic.cancelled).toBe(true);
+    noAnswer.flush([group]);
+    await fixture.whenStable();
+    expect(element.querySelectorAll('.gap')).toHaveLength(1);
+    expect(element.textContent).toContain(group.question);
+  });
+
+  it('keeps a question on the list when the server resolved nothing', async () => {
+    const { fixture, http, element } = await setup();
+    http.expectOne((r) => r.url === '/api/gaps').flush([group]);
+    await fixture.whenStable();
+    element.querySelector<HTMLButtonElement>('.gap button')!.click();
+    http.expectOne({ method: 'POST', url: '/api/gaps/resolve' }).flush({ resolved: 0 });
+    // Nothing changed on the server, so the list is reloaded rather than trusted.
+    http.expectOne((r) => r.method === 'GET' && r.url === '/api/gaps').flush([group]);
+    await fixture.whenStable();
+    expect(element.querySelector('.gap')).not.toBeNull();
+  });
 });

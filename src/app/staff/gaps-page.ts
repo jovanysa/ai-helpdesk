@@ -1,6 +1,7 @@
 import { DatePipe } from '@angular/common';
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { Subscription } from 'rxjs';
 import { GapGroup, GapReason, GapsApi } from '../gaps/gaps-api';
 
 /** Questions the chat could not answer, most asked first, so staff can add the answers to knowledge/. */
@@ -21,6 +22,7 @@ export class GapsPage implements OnInit {
   protected readonly groups = signal<GapGroup[]>([]);
   protected readonly loading = signal(false);
   protected readonly failed = signal(false);
+  private loadRequest?: Subscription;
 
   ngOnInit(): void {
     this.load();
@@ -32,8 +34,11 @@ export class GapsPage implements OnInit {
   }
 
   protected load(): void {
+    // A slower answer for the previous tab must never land under the new one.
+    this.loadRequest?.unsubscribe();
+    this.groups.set([]);
     this.loading.set(true);
-    this.api.list(this.reason()).subscribe({
+    this.loadRequest = this.api.list(this.reason()).subscribe({
       next: (groups) => {
         this.groups.set(groups);
         this.failed.set(false);
@@ -47,8 +52,13 @@ export class GapsPage implements OnInit {
   }
 
   protected resolve(group: GapGroup): void {
+    this.failed.set(false);
     this.api.resolve(this.reason(), group.key).subscribe({
-      next: () => this.groups.update((groups) => groups.filter((g) => g.key !== group.key)),
+      next: ({ resolved }) => {
+        // Only drop the row when the server really marked it handled.
+        if (resolved > 0) this.groups.update((groups) => groups.filter((g) => g.key !== group.key));
+        else this.load();
+      },
       error: () => this.failed.set(true),
     });
   }
